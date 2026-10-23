@@ -1,0 +1,32 @@
+name: Release
+on:
+  push:
+    tags: ['v[0-9]*']
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check release version
+        shell: powershell
+        run: |
+          $version = (Get-Content -Raw version.json | ConvertFrom-Json).version
+          if ($env:GITHUB_REF_NAME -ne "v$version") { throw 'Tag and version.json differ' }
+      - name: Test
+        shell: powershell
+        run: ./scripts/Test.ps1
+      - name: Build
+        shell: powershell
+        run: ./scripts/Build.ps1
+      - name: Test installation and upgrade
+        shell: powershell
+        run: ./tests/Test-Installer.ps1 -PackageZip (Get-ChildItem dist/*win-x64.zip).FullName
+      - name: Publish GitHub release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $assets = @(Get-ChildItem dist -File | ForEach-Object FullName)
+          gh release create $env:GITHUB_REF_NAME @assets --verify-tag --title "Peripheral Battery Monitor $env:GITHUB_REF_NAME" --notes-file docs/RELEASE-NOTES.md

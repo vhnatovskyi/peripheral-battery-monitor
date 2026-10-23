@@ -1,0 +1,25 @@
+name: Validate
+on:
+  push:
+    branches: [main]
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate scripts and protocol parsers
+        shell: powershell
+        run: ./scripts/Test.ps1
+      - name: Build installer and portable package
+        shell: powershell
+        run: ./scripts/Build.ps1
+      - name: Test installation and upgrade
+        shell: powershell
+        run: ./tests/Test-Installer.ps1 -PackageZip (Get-ChildItem dist/*win-x64.zip).FullName
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-package
+          path: dist/*

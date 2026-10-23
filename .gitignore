@@ -5,3 +5,6 @@
 *.pdb
 .vs/
 work/
+dist/
+bin/
+obj/

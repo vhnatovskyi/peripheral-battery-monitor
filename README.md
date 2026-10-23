@@ -1,54 +1,70 @@
-# AJ139 V2 MC Battery Indicator
+# Peripheral Battery Monitor
 
-Windows tray battery percentage for the **AJAZZ AJ139 V2 MC**, using its 2.4 GHz USB receiver. No AJAZZ application, installation, third-party driver, or downloaded runtime is required. The indicator itself runs as a small background PowerShell process and compiles its included C# source with Windows' built-in .NET Framework.
+A lightweight Windows app for wireless-device battery status. One tray icon, a device dashboard, local settings, and updates from GitHub Releases. No vendor application or third-party device driver is required.
 
-## Run
+## Install
 
-1. Download or clone this repository and keep the files together.
-2. Connect the USB receiver and switch the mouse to **2.4G**.
-3. Double-click `Start-AJ139-Battery.cmd`.
-4. Look for a green number near the clock. If Windows hides it, open **˄** and drag it onto the taskbar.
+Download **PeripheralBatteryMonitor-Setup-0.1.0.exe** from [the latest release](https://github.com/vhnatovskyi/peripheral-battery-monitor/releases/latest) and run it. Installation is per-user and does not require administrator rights. You can uninstall it through Windows **Installed apps**.
 
-Right-click the icon for **Refresh battery** or **Exit**. Double-click the icon to refresh manually. A second launch does not create a second indicator. Startup at Windows sign-in is not enabled automatically.
+For portable use, download and extract the `win-x64.zip` release asset and run **PeripheralBatteryMonitor.exe**. Keep the extracted files together. Binaries are unsigned, so Windows may show an unknown-publisher notice.
 
-Requires Windows 10/11, Windows PowerShell 5.1, and the built-in .NET Framework. Tested on Windows 11 with receiver `VID_A8A5 / PID_2255`. Other mouse models and firmware versions are not confirmed.
+Requires Windows 10/11 x64 with Windows PowerShell 5.1 and the built-in .NET Framework. No separate runtime download is needed. A background HID listener runs while the app is open.
 
-## Automatic updates
+## Supported devices
 
-The indicator continuously listens to incoming HID reports. When the receiver sends a battery-change notification, the displayed value updates automatically. It **does not periodically query the battery**, including every five minutes.
+- **AJAZZ AJ139 V2 MC**, over its 2.4 GHz receiver (`A8A5:2255`). Green status ring.
+- **Apple Magic Keyboard with Touch ID and Numeric Keypad**, over Bluetooth (`004C:029F`). Blue status ring.
 
-An initial request obtains the current value at launch or after the USB receiver reconnects. Mouse-online notifications trigger a refresh when the mouse reconnects. Manual Refresh sends the same read-only requests. The UI checks the already received state every 100 ms; this timer sends no commands to the mouse and redraws only after a state change.
+Other models are not assumed compatible. AJ139 Bluetooth battery reading remains unsupported; the Apple keyboard's Bluetooth implementation is separate.
 
-Updates depend on notifications emitted by the mouse/receiver firmware. If firmware fails to report a change, use Refresh. Live query and manual refresh were tested at 100%; parsing of unsolicited change notifications is covered by tests and the vendor web application's handler, but a physical battery percentage drop was not observed during validation.
+## Use
 
-## Display
+Double-click the tray icon to open the dashboard. Hover over it for both percentages. The dashboard shows device cards, connection status and the last battery-report time. Closing the dashboard keeps monitoring active; choose **Exit** in the tray menu to stop the app.
 
-- **0–100**, green: reported battery percentage above 20%.
-- **0–20**, orange/red: reported battery percentage at or below 20%.
-- **?**, gray: no confirmed current battery value, receiver missing, or mouse offline.
+**Settings** lets you change the tray display (battery rings or lowest percentage), low-battery notifications and threshold, startup at Windows sign-in, and release checking. Startup is disabled by default. Settings are kept in your local Windows profile, independently of application versions.
 
-The charge-status byte is retained in the state but is not interpreted as a charging indicator because its complete semantics have not been validated.
+The app queries each device at startup/reconnect or manual **Refresh batteries**, then listens for battery-change reports. It does not poll battery percentages every five minutes. Firmware controls notification timing; if a change is not reported, use Refresh. Zero percent is a valid value; missing data is displayed as unavailable rather than zero.
 
-## Bluetooth limitation
+## Updates
 
-Bluetooth battery reading is **not supported** by this implementation. The tested mouse exposes no standard Bluetooth Battery Service (`0x180F`). Its Bluetooth HID collections expose no feature reports, and accessible GATT values did not provide a battery percentage. The USB command cannot simply be reused over Bluetooth. No firmware update or writes to the proprietary Bluetooth service are attempted.
+By default, the app checks the latest stable GitHub release at startup, at most once per day, and notifies you when a newer version exists. **Check for updates** in the window or tray menu downloads and installs it after you choose to proceed. This restart preserves settings.
 
-When the USB receiver reports that the mouse is offline, its cached battery response is ignored instead of showing that old value as a Bluetooth reading. If firmware fails to notify a disconnect, the previous reported value may remain until a manual refresh or receiver removal.
+The updater validates the release's SHA-256 checksum, expected repository/download paths, package version, archive paths and size. New version files are staged before the active-version pointer changes. Previous version directories are retained. Checksums are integrity checks, not a code-signing certificate. Portable copies are installed into the normal per-user location when you accept an update.
 
-## Files
+## Repository layout
 
-- `AJ139-Battery.ps1`: tray UI, rendering, single-instance protection, and lifecycle.
-- `Aj139Monitor.cs`: HID discovery, background listener, read-only query requests, and report parsing.
-- `Start-AJ139-Battery.cmd`: launches Windows PowerShell with a hidden window. Its process-local execution-policy option does not change the computer's saved policy.
-- `Test-Protocol.ps1`: parser regression tests; no mouse required.
-- `PROTOCOL.md`: observed packet structure and design details.
-
-Run tests:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Protocol.ps1
+```text
+src/
+  App/         Dashboard, tray, settings and release updater
+  Core/        Shared state and Windows HID discovery
+  Devices/     AJ139 and Magic Keyboard providers and parsers
+  Launcher/    Native Windows entry point
+installer/     Self-contained setup and install/uninstall scripts
+scripts/       Build and validation commands
+tests/         Protocol, updater and installation regression tests
+docs/          Protocol, development guide and release notes
+.github/       Validation and release workflows
+version.json   Release version and repository metadata
 ```
 
-## Sources
+## Build and develop
 
-Packet layouts were identified by inspecting the JavaScript served by the [official AJ139 V2 MC web panel](https://139v2mc.yjx2012.com/), linked in the [model's manual](https://ae01.alicdn.com/kf/S2bc3c9a125f44cde8b8ef113942b4b16T.pdf), and then testing read-only requests against the physical receiver. This project is an independent implementation and is not affiliated with AJAZZ.
+```powershell
+./scripts/Test.ps1
+./scripts/Build.ps1
+./Start.cmd
+```
+
+Build output goes into `dist/`: portable ZIP, setup EXE and SHA256SUMS.txt. A matching `vX.Y.Z` tag triggers a tested GitHub release. See [development and release instructions](docs/DEVELOPMENT.md) and [device protocol details](docs/PROTOCOL.md).
+
+## Validation and limits
+
+Both connected devices returned **100%** in live initial/manual queries. Parser tests cover unsolicited battery packets, zero/invalid percentages, truncated reports and unrelated messages. Installation tests cover a clean install, version upgrade, retention of the previous version and rejection of an incomplete package. Update tests cover version comparison, checksum mismatch and archive traversal.
+
+A physical percentage drop has not yet been observed during validation, so unsolicited notification timing is not confirmed. A missing disconnect notification may leave the last reported value until Refresh/reconnection. Charging flags are not interpreted as charging-state UI. Bluetooth sleep behavior may vary by firmware. Automatic post-launch health-check rollback is not implemented.
+
+The keyboard provider opens only its battery vendor collection, not the keystroke collection. No typed keys, telemetry or cloud account are collected. Network access is used only for GitHub release checks/downloads; automatic checks can be disabled.
+
+## Protocol references
+
+AJ139 packet layouts were identified from the JavaScript served by its [official web panel](https://139v2mc.yjx2012.com/), linked in the [model manual](https://ae01.alicdn.com/kf/S2bc3c9a125f44cde8b8ef113942b4b16T.pdf), and checked against the receiver. The Apple report format was cross-checked against [MagicKeyBattery](https://github.com/fixtan/MagicKeyBattery) and verified against the connected keyboard. The implementations here were written independently. This project is not affiliated with AJAZZ or Apple.

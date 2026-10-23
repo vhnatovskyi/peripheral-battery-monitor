@@ -50,3 +50,9 @@ There is no periodic battery query timer. The UI's 100 ms timer reads the in-mem
 ## Validation and limitations
 
 Tested: receiver discovery, live online status, a 100% battery reply, manual refresh, parser handling of battery notifications versus unrelated reports, malformed data, and zero/invalid percentages. A physical unsolicited change at a different charge level has not yet been observed. Firmware may vary; loss of a notification can leave the last reported value until a manual refresh. Bluetooth battery retrieval remains unsupported.
+
+## Apple Magic Keyboard provider
+
+Supported Bluetooth identity: VID/company 004C, PID 029F. Select vendor collection FF00 / usage 0014, with input size 3 and output size 0. Query report 0x90 using HidD_GetInputReport on a query-only handle. Observed packet: `90 00 64`, meaning 100% (byte 2, decimal range 0–100). The middle byte is not interpreted. The passive listener accepts only three-byte reports whose first byte is 90 and whose percentage is at most 100. It opens this battery vendor collection, not the separate keyboard input collection.
+
+The keyboard provider has its own locked state and cancellation token. It queries once when a newly discovered interface is opened, and on manual Refresh; subsequent battery reports update the state without polling. Physical disconnection clears the percentage and restarts local interface discovery. Startup/manual queries were validated at 100%, and malformed/zero/unrelated reports are covered by parser tests. A real battery drop was not observed yet. If the keyboard does not push changes or signal a disconnect, the last reported value remains until manual refresh/reconnection.
