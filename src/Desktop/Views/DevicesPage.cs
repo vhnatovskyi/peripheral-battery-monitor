@@ -18,13 +18,13 @@ internal sealed class DevicesPage : ContentPage
         paging.Add(Design.Button("‹",(_,_)=>{page=Math.Max(0,page-1);Refresh();}));paging.Add(pageLabel);
         paging.Add(Design.Button("›",(_,_)=>{page++;Refresh();}));
         Content=content;
-        var refresh=new ImageButton { AutomationId="RefreshDevices",WidthRequest=32,HeightRequest=32,Padding=7,CornerRadius=6,BackgroundColor=Colors.Transparent };
+        var refresh=new Button { AutomationId="RefreshDevices",Text=Design.Glyph("refresh"),FontFamily=Design.IconFont,FontSize=18,WidthRequest=32,HeightRequest=32,Padding=0,CornerRadius=6,BackgroundColor=Colors.Transparent };
         refresh.Clicked+=(_,_)=>AppRuntime.Current.Refresh();
         var hover=new PointerGestureRecognizer();hover.PointerEntered+=(_,_)=>refresh.BackgroundColor=Color.FromArgb(Design.IsDark?"#34485F":"#DFE9F5");hover.PointerExited+=(_,_)=>refresh.BackgroundColor=Colors.Transparent;refresh.GestureRecognizers.Add(hover);
         var heading=Design.Label("",18,true);heading.VerticalOptions=LayoutOptions.Center;
         var toolbar=new Grid { ColumnDefinitions=[new(GridLength.Star),new(GridLength.Auto)],Padding=new Thickness(12,0),HeightRequest=36 };
         toolbar.Add(heading);toolbar.Add(refresh,1);Shell.SetTitleView(this,toolbar);
-        void Translate(){heading.Text=Design.T("Пристрої","Devices");string caption=Design.T("Оновити заряд пристроїв","Refresh device batteries");refresh.Source=Design.IsDark?"refresh.png":"refresh_light.png";ToolTipProperties.SetText(refresh,caption);SemanticProperties.SetDescription(refresh,caption);layoutKey="";Refresh();}
+        void Translate(){heading.Text=Design.T("Пристрої","Devices");string caption=Design.T("Оновити заряд пристроїв","Refresh device batteries");ToolTipProperties.SetText(refresh,caption);SemanticProperties.SetDescription(refresh,caption);layoutKey="";Refresh();}
         AppRuntime.Current.Changed+=()=>{if(Shell.Current?.CurrentPage==this)Refresh();};Appearing+=(_,_)=>Refresh();AppRuntime.Current.SettingsChanged+=Translate;AppRuntime.Current.AppearanceChanged+=Translate;
         SizeChanged+=(_,_)=>{toolbar.WidthRequest=Math.Max(120,Width-8);Refresh();};Translate();
     }

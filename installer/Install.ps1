@@ -59,6 +59,7 @@ try {
         if (Test-Path -LiteralPath $pointer) { [IO.File]::Replace($pending, $pointer, (Join-Path $install 'previous.txt')) } else { [IO.File]::Move($pending, $pointer) }
     } finally { $instanceMutex.ReleaseMutex() }
 } finally { $instanceMutex.Dispose() }
+& (Join-Path $PSScriptRoot 'Remove-OldVersions.ps1') -InstallRoot $install -CurrentVersion $version
 if (-not $NoIntegration) {
     $shell = New-Object -ComObject WScript.Shell
     $shortcutPath = Join-Path ([Environment]::GetFolderPath('Programs')) 'Peripheral Battery Monitor.lnk'
@@ -71,10 +72,12 @@ if (-not $NoIntegration) {
     $uninstall = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PeripheralBatteryMonitor'
     New-Item -Path $uninstall -Force | Out-Null
     $uninstallScript=Join-Path $destination 'installer\Uninstall.ps1'
-    $properties = @{ DisplayName='Peripheral Battery Monitor'; DisplayVersion=$version; Publisher='vhnatovskyi'; InstallLocation=$install; DisplayIcon=$launcher; URLInfoAbout='https://github.com/vhnatovskyi/peripheral-battery-monitor'; UninstallString=('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "'+$uninstallScript+'" -InstallRoot "'+$install+'"') }
+    $properties = @{ DisplayName='Peripheral Battery Monitor'; DisplayVersion=$version; Publisher='Vladyslav Hnatovskyi'; InstallLocation=$install; DisplayIcon=$launcher; URLInfoAbout='https://github.com/vhnatovskyi/peripheral-battery-monitor'; UninstallString=('powershell.exe -NoProfile -ExecutionPolicy Bypass -File "'+$uninstallScript+'" -InstallRoot "'+$install+'"') }
     foreach ($key in $properties.Keys) { New-ItemProperty -Path $uninstall -Name $key -Value $properties[$key] -PropertyType String -Force | Out-Null }
     New-ItemProperty -Path $uninstall -Name NoModify -Value 1 -PropertyType DWord -Force | Out-Null
     New-ItemProperty -Path $uninstall -Name NoRepair -Value 1 -PropertyType DWord -Force | Out-Null
+    $installedKiB=[int][Math]::Ceiling((Get-ChildItem -LiteralPath $install -Recurse -File | Measure-Object Length -Sum).Sum/1KB)
+    New-ItemProperty -Path $uninstall -Name EstimatedSize -Value $installedKiB -PropertyType DWord -Force | Out-Null
     $run='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     $startup=Get-ItemProperty -Path $run -Name PeripheralBatteryMonitor -ErrorAction SilentlyContinue
     if($startup -and $startup.PeripheralBatteryMonitor){Set-ItemProperty -Path $run -Name PeripheralBatteryMonitor -Value ('"'+$launcher+'" --background')}

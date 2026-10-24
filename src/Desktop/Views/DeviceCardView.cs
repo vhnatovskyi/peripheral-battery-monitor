@@ -5,10 +5,10 @@ namespace PeripheralBatteryMonitor.Desktop.Views;
 
 internal sealed class DeviceCardView : Border
 {
-    private readonly Image icon=new() { WidthRequest=24,HeightRequest=24 };
+    private readonly Label icon=new() { WidthRequest=24,HeightRequest=24,FontFamily=Design.IconFont,FontSize=24,VerticalTextAlignment=TextAlignment.Center,HorizontalTextAlignment=TextAlignment.Center };
     private readonly Label name=Design.Label("",13,true),transport=Design.Hint(""),percent=Design.Label("",30,true),time=Design.Hint("");
     private readonly ProgressBar charge=new() { HeightRequest=4,BackgroundColor=Color.FromArgb("#344457") };
-    private readonly ImageButton disconnect=new() { Source="unplug.png",WidthRequest=28,HeightRequest=28,Padding=6,BackgroundColor=Colors.Transparent };
+    private readonly Button disconnect=new() { Text=Design.Glyph("unplug"),FontFamily=Design.IconFont,FontSize=16,WidthRequest=28,HeightRequest=28,Padding=0,BackgroundColor=Colors.Transparent };
     private DeviceReading? reading;
     private string? iconKey,disconnectKey;
     public DeviceCardView()
@@ -31,11 +31,11 @@ internal sealed class DeviceCardView : Border
     }
     public void Update(DeviceReading value)
     {
-        // Replacing FileImageSource on every state tick restarts the native image load.
-        string key=value.Kind+(Design.IsDark?"":"_light")+".png";
-        if(iconKey!=key){icon.Source=key;iconKey=key;}
-        string unplug=Design.IsDark?"unplug.png":"unplug_light.png";
-        if(disconnectKey!=unplug){disconnect.Source=unplug;disconnectKey=unplug;}
+        // Draw a native font glyph without a bitmap or asynchronous image load.
+        string key=value.Kind+Design.IsDark;
+        if(iconKey!=key){icon.Text=Design.Glyph(value.Kind);icon.TextColor=Color.FromArgb(Design.IsDark?"#B3C7DC":"#526982");iconKey=key;}
+        string unplug="unplug"+Design.IsDark;
+        if(disconnectKey!=unplug){disconnect.TextColor=Color.FromArgb(Design.IsDark?"#95A3B8":"#526982");disconnectKey=unplug;}
         reading=value;name.Text=value.Name;transport.Text=value.Transport;
         percent.Text=value.Percent is int level?level+"%":"—";
         charge.Progress=(value.Percent??0)/100d;

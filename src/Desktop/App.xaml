@@ -9,7 +9,8 @@
             <Style TargetType="Label"><Setter Property="TextColor" Value="{AppThemeBinding Light=#182435, Dark=#F5F7FA}" /><Setter Property="FontSize" Value="14" /></Style>
             <Style TargetType="Button"><Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#E3EAF2, Dark=#26374B}" /><Setter Property="TextColor" Value="{AppThemeBinding Light=#182435, Dark=White}" /><Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="16,10" /><Setter Property="FontSize" Value="14" /></Style>
             <Style TargetType="Picker"><Setter Property="TextColor" Value="{AppThemeBinding Light=#182435, Dark=White}" /><Setter Property="TitleColor" Value="{AppThemeBinding Light=#52647A, Dark=#95A3B8}" /><Setter Property="BackgroundColor" Value="{AppThemeBinding Light=#E3EAF2, Dark=#26374B}" /></Style>
-            <Style TargetType="Switch"><Setter Property="OnColor" Value="#55DEAD" /><Setter Property="ThumbColor" Value="White" /></Style>
+            <Style TargetType="Switch"><Setter Property="OnColor" Value="#55DEAD" /><Setter Property="ThumbColor" Value="White" /><Setter Property="WidthRequest" Value="40" /><Setter Property="MinimumWidthRequest" Value="40" /><Setter Property="HeightRequest" Value="32" /></Style>
+            <Style TargetType="Slider"><Setter Property="MinimumTrackColor" Value="#55DEAD" /><Setter Property="ThumbColor" Value="#55DEAD" /><Setter Property="MaximumTrackColor" Value="{AppThemeBinding Light=#CBD7E5, Dark=#34465D}" /><Setter Property="HeightRequest" Value="32" /></Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

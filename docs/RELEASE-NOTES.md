@@ -1,3 +1,9 @@
+## v0.5.11
+
+- Align compact native switches with their labels and device column headings. Use consistent slider colors and whole-percent steps for mouse and keyboard adjustments.
+- Ship only the shared logo and application ICO. Use Windows symbol fonts for device/action icons, with Windows 10 fallback, instead of generated bitmap scale variants. Remove unused tile and splash images for the unpackaged Windows application.
+- Keep only the active and previous installed version. Remove older owned version folders after an upgrade, retain unknown folders and settings, and report the actual installed size in Windows. Other releases remain available through the release picker.
+
 ## v0.5.10
 
 - Activate the running application when launching again. Check the shared instance before loading MAUI or PowerShell; keep one monitor across installation folders and versions, and allow restart after an unexpected exit.

@@ -28,17 +28,17 @@ internal static class UiSmoke
             var testCard=new Views.DeviceCardView();
             var sample=new Services.DeviceReading("test","Mouse","Bluetooth",92,"#55DEAD","Demo",DateTime.UtcNow,null);
             testCard.Update(sample);
-            var image=(Image)typeof(Views.DeviceCardView).GetField("icon",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.GetValue(testCard)!;
-            var source=image.Source;
+            var image=(Label)typeof(Views.DeviceCardView).GetField("icon",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.GetValue(testCard)!;
+            var source=image.Text;
             for(int value=91;value>=80;value--)testCard.Update(sample with { Percent=value });
-            if(!ReferenceEquals(source,image.Source))throw new InvalidOperationException("State update restarted the device icon load");
+            if(source!=image.Text)throw new InvalidOperationException("Battery update changed the device glyph");
             foreach(string route in new[]{"devices","settings","about","releases"})
             {
                 shell.Navigate(route);await Task.Delay(route=="releases"?1800:600);
                 if(route=="devices")
                 {
                     var toolbar=(Grid)Shell.GetTitleView(Shell.Current.CurrentPage);
-                    var refresh=toolbar.Children.OfType<ImageButton>().Single(b=>b.AutomationId=="RefreshDevices");
+                    var refresh=toolbar.Children.OfType<Button>().Single(b=>b.AutomationId=="RefreshDevices");
                     if(string.IsNullOrWhiteSpace(ToolTipProperties.GetText(refresh)?.ToString()))throw new InvalidOperationException("Refresh tooltip missing");
                     if(refresh.Handler?.PlatformView is Microsoft.UI.Xaml.DependencyObject native && Microsoft.UI.Xaml.Controls.ToolTipService.GetToolTip(native)==null)
                         throw new InvalidOperationException("Native refresh tooltip missing");
@@ -46,6 +46,9 @@ internal static class UiSmoke
                 if(route=="settings")
                 {
                     var elements=Descendants((IVisualTreeElement)Shell.Current.CurrentPage).ToArray();
+                    foreach(var toggle in elements.OfType<Switch>())
+                        if(toggle.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.ToggleSwitch nativeToggle && (nativeToggle.ActualWidth>42 || nativeToggle.MinWidth>40))
+                            throw new InvalidOperationException("Switch retains blank native label space");
                     if(elements.OfType<Button>().Any(b=>b.Text is "Зберегти зміни" or "Save changes"))throw new InvalidOperationException("Manual Save button remains");
                     var preferences=Services.AppRuntime.Current.Settings.Value.Copy();
                     var widget=elements.OfType<Switch>().Single(s=>s.AutomationId=="WidgetDevice_demo-mouse");
@@ -57,6 +60,8 @@ internal static class UiSmoke
                     if(Services.AppRuntime.Current.Settings.Value.ShowInTray("demo-mouse")==trayBefore)throw new InvalidOperationException("Tray setting did not apply immediately");
                     tray.IsToggled=trayBefore;
                     var slider=elements.OfType<Slider>().Single(s=>s.AutomationId=="WidgetTransparency");
+                    if(slider.Handler?.PlatformView is Microsoft.UI.Xaml.Controls.Slider nativeSlider && nativeSlider.StepFrequency!=1)
+                        throw new InvalidOperationException("Slider must use whole-percent steps");
                     double oldValue=slider.Value;slider.Value=100;
                     if(Services.AppRuntime.Current.Settings.Value.WidgetOpacity!=0)throw new InvalidOperationException("100% background transparency did not apply immediately");
                     slider.Value=oldValue;
