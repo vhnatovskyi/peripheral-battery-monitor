@@ -18,6 +18,9 @@ public sealed class AppRuntime
     private IDispatcherTimer? timer;
     private Platforms.Windows.TrayHost? tray;
     private Microsoft.UI.Xaml.Window? nativeWindow;
+    private Window? mauiWindow;
+    private ContentPage? fittedPage;
+    private double fittedHeight;
     private readonly Dictionary<string,bool> alerted=[];
     private bool exiting;
     public bool Background => Environment.GetCommandLineArgs().Contains("--background");
@@ -35,12 +38,15 @@ public sealed class AppRuntime
     }
     public void Start(Window window)
     {
+        mauiWindow=window;
         nativeWindow=(Microsoft.UI.Xaml.Window)window.Handler!.PlatformView!;
         nativeWindow.Title="Peripheral Battery Monitor v"+Settings.Version;
+        UpdateCaptionTheme();
         if(nativeWindow.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)presenter.IsMaximizable=false;
         string icon=Path.Combine(AppContext.BaseDirectory,"app-icon.ico");
         if(File.Exists(icon))nativeWindow.AppWindow.SetIcon(icon);
         nativeWindow.AppWindow.Closing+=(_,args)=>{if(!exiting){args.Cancel=true;nativeWindow.AppWindow.Hide();}};
+        ResizeForCurrentPage();
         if(smoke)
         {
             Readings=[new("demo-mouse","AJ139 V2 MC","2.4 GHz",93,"#55DEAD","Demo",DateTime.UtcNow,null),
@@ -91,8 +97,44 @@ public sealed class AppRuntime
     public void SaveSettings(MonitorSettings value)
     { Settings.Save(value);ApplyTheme();SettingsChanged?.Invoke();tray?.Invalidate();Tick(); }
     public void ApplyTheme()=>Application.Current!.UserAppTheme=Settings.Value.Theme switch { "Light"=>AppTheme.Light,"Dark"=>AppTheme.Dark,_=>AppTheme.Unspecified };
-    public void RefreshAppearance(){AppearanceChanged?.Invoke();Changed?.Invoke();tray?.Invalidate();}
+    public void RefreshAppearance(){UpdateCaptionTheme();AppearanceChanged?.Invoke();Changed?.Invoke();tray?.Invalidate();}
+    private void UpdateCaptionTheme()
+    {
+        if(nativeWindow==null)return;
+        bool dark=Views.Design.IsDark;var bar=nativeWindow.AppWindow.TitleBar;
+        bar.ButtonForegroundColor=dark?global::Windows.UI.Color.FromArgb(255,245,247,250):global::Windows.UI.Color.FromArgb(255,24,36,53);
+        bar.ButtonInactiveForegroundColor=dark?global::Windows.UI.Color.FromArgb(255,149,163,184):global::Windows.UI.Color.FromArgb(255,82,100,122);
+        bar.ButtonBackgroundColor=bar.ButtonInactiveBackgroundColor=global::Windows.UI.Color.FromArgb(0,0,0,0);
+        bar.ButtonHoverBackgroundColor=dark?global::Windows.UI.Color.FromArgb(255,52,72,95):global::Windows.UI.Color.FromArgb(255,220,231,245);
+        bar.ButtonHoverForegroundColor=bar.ButtonForegroundColor;
+    }
     public void Refresh(){Devices.Refresh();}
+    public double MaximumWindowHeight
+    {
+        get{
+            if(nativeWindow==null)return 800;
+            var display=Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(nativeWindow.AppWindow.Id,Microsoft.UI.Windowing.DisplayAreaFallback.Nearest);
+            double scale=((Microsoft.UI.Xaml.FrameworkElement)nativeWindow.Content).XamlRoot?.RasterizationScale??1;
+            return display.WorkArea.Height/scale-24;
+        }
+    }
+    public void ResizeForCurrentPage()
+    {
+        if(Shell.Current?.CurrentPage is not ContentPage page)return;
+        if(page is Views.DevicesPage devices){devices.FitToDevices();return;}
+        ResizeForPage(page,page is Views.SettingsPage?740:page is Views.ReleasesPage?560:470);
+    }
+    public void ResizeForPage(ContentPage page,double height)
+    {
+        if(mauiWindow==null || nativeWindow==null || Shell.Current?.CurrentPage!=page)return;
+        double target=Math.Clamp(height,240,Math.Max(240,MaximumWindowHeight));
+        if(fittedPage==page && Math.Abs(fittedHeight-target)<1)return;
+        fittedPage=page;fittedHeight=target;mauiWindow.Height=target;
+        var display=Microsoft.UI.Windowing.DisplayArea.GetFromWindowId(nativeWindow.AppWindow.Id,Microsoft.UI.Windowing.DisplayAreaFallback.Nearest);
+        double scale=((Microsoft.UI.Xaml.FrameworkElement)nativeWindow.Content).XamlRoot?.RasterizationScale??1;
+        var position=nativeWindow.AppWindow.Position;int bottom=display.WorkArea.Y+display.WorkArea.Height;
+        if(position.Y+target*scale>bottom)nativeWindow.AppWindow.Move(new global::Windows.Graphics.PointInt32(position.X,Math.Max(display.WorkArea.Y,bottom-(int)Math.Ceiling(target*scale))));
+    }
     public void Show(){nativeWindow?.AppWindow.Show();nativeWindow?.Activate();ShowRequested?.Invoke();}
     private void HandleTrayAction(string action)
     {

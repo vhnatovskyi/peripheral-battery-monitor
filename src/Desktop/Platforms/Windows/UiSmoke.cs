@@ -58,6 +58,17 @@ internal static class UiSmoke
                 encoder.SetPixelData(BitmapPixelFormat.Bgra8,BitmapAlphaMode.Premultiplied,(uint)bitmap.PixelWidth,(uint)bitmap.PixelHeight,96,96,buffer.ToArray());
                 await encoder.FlushAsync();
             }
+            if(Environment.GetCommandLineArgs().Contains("--ui-smoke"))
+            {
+                shell.FlyoutIsPresented=true;await Task.Delay(400);
+                var bitmap=new RenderTargetBitmap();await bitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)window.Content);
+                var buffer=await bitmap.GetPixelsAsync();
+                var file=await StorageFile.GetFileFromPathAsync(CreateFile(Path.Combine(folder,"navigation.png")));
+                using var stream=await file.OpenAsync(FileAccessMode.ReadWrite);
+                var encoder=await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId,stream);
+                encoder.SetPixelData(BitmapPixelFormat.Bgra8,BitmapAlphaMode.Premultiplied,(uint)bitmap.PixelWidth,(uint)bitmap.PixelHeight,96,96,buffer.ToArray());
+                await encoder.FlushAsync();shell.FlyoutIsPresented=false;
+            }
             File.WriteAllText(Path.Combine(folder,"result.txt"),"PASS: native MAUI pages, navigation and render\n"+
                 string.Join('\n',Services.AppRuntime.Current.Readings.Select(d=>$"{d.Name}: {d.Percent}% / {d.Transport} / {d.Provider}")));
             Services.AppRuntime.Current.Exit();

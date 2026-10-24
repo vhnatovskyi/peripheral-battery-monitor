@@ -1,3 +1,10 @@
+## v0.5.3
+
+- Place the About headline and version next to the application icon in a compact, vertically centered header.
+- Match native window caption button contrast to the selected application theme.
+- Place charge and update time beside device names in shorter cards; fit the window height to the current page and device count.
+- Remove unused icon spacing from flyout navigation and align labels to the left.
+
 ## v0.5.2
 
 - Give the combined indicator an opaque dark center and stable colored device sections; remove digit outlines that obscured the ring.

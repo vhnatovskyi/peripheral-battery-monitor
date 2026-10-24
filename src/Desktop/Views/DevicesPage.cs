@@ -34,9 +34,11 @@ internal sealed class DevicesPage : ContentPage
         summary.Text=readings.Count==0?Design.T("Підключіть пристрій — він зʼявиться автоматично.","Connect a device — it will appear automatically."):
             Design.T($"Підключено: {readings.Count}",$"Connected: {readings.Count}");
         int columns=Width>=780?3:Width>=500?2:1;
-        int rows=Math.Clamp((int)((Height-88)/140),1,3),capacity=columns*rows;
+        int maximumRows=Math.Clamp((int)((AppRuntime.Current.MaximumWindowHeight-160)/100),1,4);
+        int rows=Math.Clamp((int)Math.Ceiling(Math.Max(1,readings.Count)/(double)columns),1,maximumRows),capacity=columns*rows;
         int pages=Math.Max(1,(readings.Count+capacity-1)/capacity);page=Math.Clamp(page,0,pages-1);
         paging.IsVisible=pages>1;pageLabel.Text=$"{page+1} / {pages}";
+        AppRuntime.Current.ResizeForPage(this,160+rows*100+(pages>1?44:0));
         var selected=readings.Skip(page*capacity).Take(capacity).ToArray();
         string key=columns+":"+rows+":"+page+":"+string.Join("|",selected.Select(d=>d.Id));
         if(key!=layoutKey)
@@ -52,5 +54,6 @@ internal sealed class DevicesPage : ContentPage
         }
         foreach(var item in selected)views[item.Id].Update(item);
     }
+    public void FitToDevices()=>Refresh();
 }
 

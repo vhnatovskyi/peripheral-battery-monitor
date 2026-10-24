@@ -13,13 +13,16 @@ internal sealed class DeviceCardView : Border
     private string? iconKey,disconnectKey;
     public DeviceCardView()
     {
-        StrokeShape=new RoundRectangle { CornerRadius=10 };Design.ThemePanel(this);Padding=10;HeightRequest=128;
+        StrokeShape=new RoundRectangle { CornerRadius=10 };Design.ThemePanel(this);Padding=10;HeightRequest=88;
         charge.SetAppThemeColor(VisualElement.BackgroundColorProperty,Color.FromArgb("#DCE4ED"),Color.FromArgb("#344457"));
-        transport.FontSize=11;time.FontSize=10;
-        var head=new Grid { ColumnDefinitions=[new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)],ColumnSpacing=8 };
-        head.Add(icon);head.Add(new VerticalStackLayout { Spacing=3,Children={name,transport} },1);head.Add(disconnect,2);
+        transport.FontSize=11;time.FontSize=9;percent.FontSize=26;
+        percent.HorizontalTextAlignment=TextAlignment.End;time.HorizontalTextAlignment=TextAlignment.End;
+        var metrics=new VerticalStackLayout { Spacing=0,VerticalOptions=LayoutOptions.Center,Children={percent,time} };
+        var head=new Grid { ColumnDefinitions=[new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto),new(GridLength.Auto)],ColumnSpacing=8 };
+        icon.VerticalOptions=LayoutOptions.Center;disconnect.VerticalOptions=LayoutOptions.Start;
+        head.Add(icon);head.Add(new VerticalStackLayout { Spacing=3,VerticalOptions=LayoutOptions.Center,Children={name,transport} },1);head.Add(metrics,2);head.Add(disconnect,3);
         name.LineBreakMode=LineBreakMode.TailTruncation;name.MaxLines=1;
-        var stack=Design.Stack(head,percent,charge,time);stack.Spacing=5;Content=stack;
+        var stack=Design.Stack(head,charge);stack.Spacing=6;Content=stack;
         disconnect.Clicked+=Disconnect;
         var pointer=new PointerGestureRecognizer();
         pointer.PointerEntered+=(_,_)=>{disconnect.BackgroundColor=Color.FromArgb(Design.IsDark?"#34485F":"#DFE9F5");disconnect.BorderColor=Color.FromArgb(Design.IsDark?"#7D95B2":"#7692AF");};

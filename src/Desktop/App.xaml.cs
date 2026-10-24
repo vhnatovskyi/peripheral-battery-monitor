@@ -14,7 +14,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-        var window=new Window(new AppShell()) { Title="Peripheral Battery Monitor v"+Services.AppRuntime.Current.Settings.Version, Width=720,Height=460,MinimumWidth=560,MinimumHeight=360 };
+        var window=new Window(new AppShell()) { Title="Peripheral Battery Monitor v"+Services.AppRuntime.Current.Settings.Version, Width=720,Height=340,MinimumWidth=560,MinimumHeight=240 };
         var titleBar=new TitleBar { Title=window.Title,Icon="brand.png" };
         titleBar.SetAppThemeColor(VisualElement.BackgroundColorProperty,Color.FromArgb("#F3F6FA"),Color.FromArgb("#101820"));
         titleBar.SetAppThemeColor(TitleBar.ForegroundColorProperty,Color.FromArgb("#182435"),Colors.White);
