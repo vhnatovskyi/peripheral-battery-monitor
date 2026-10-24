@@ -3,8 +3,8 @@
     x:Class="PeripheralBatteryMonitor.Desktop.AppShell"
     xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
     xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-    FlyoutBehavior="Flyout" FlyoutWidth="170" BackgroundColor="#101820"
-    FlyoutBackgroundColor="#141E2B" Shell.BackgroundColor="#141E2B"
-    Shell.ForegroundColor="White" Shell.TitleColor="White" Shell.UnselectedColor="#95A3B8">
+    FlyoutBehavior="Flyout" FlyoutWidth="170" BackgroundColor="{AppThemeBinding Light=#F3F6FA, Dark=#101820}"
+    FlyoutBackgroundColor="{AppThemeBinding Light=#EAF0F7, Dark=#141E2B}" Shell.BackgroundColor="{AppThemeBinding Light=#EAF0F7, Dark=#141E2B}"
+    Shell.ForegroundColor="{AppThemeBinding Light=#182435, Dark=White}" Shell.TitleColor="{AppThemeBinding Light=#182435, Dark=White}" Shell.UnselectedColor="{AppThemeBinding Light=#52647A, Dark=#95A3B8}">
 
 </Shell>

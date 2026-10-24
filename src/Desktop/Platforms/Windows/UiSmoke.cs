@@ -28,11 +28,31 @@ internal static class UiSmoke
             foreach(string route in new[]{"devices","settings","about","releases"})
             {
                 shell.Navigate(route);await Task.Delay(route=="releases"?1800:600);
+                if(route=="devices")
+                {
+                    var toolbar=(Grid)Shell.GetTitleView(Shell.Current.CurrentPage);
+                    var refresh=toolbar.Children.OfType<ImageButton>().Single(b=>b.AutomationId=="RefreshDevices");
+                    if(string.IsNullOrWhiteSpace(ToolTipProperties.GetText(refresh)?.ToString()))throw new InvalidOperationException("Refresh tooltip missing");
+                    if(refresh.Handler?.PlatformView is Microsoft.UI.Xaml.DependencyObject native && Microsoft.UI.Xaml.Controls.ToolTipService.GetToolTip(native)==null)
+                        throw new InvalidOperationException("Native refresh tooltip missing");
+                }
                 if(Shell.Current.CurrentPage.Handler==null)throw new InvalidOperationException("Missing native page handler: "+route);
                 var bitmap=new RenderTargetBitmap();await bitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)window.Content);
                 if(bitmap.PixelWidth<300||bitmap.PixelHeight<200)throw new InvalidOperationException("Invalid native layout size");
                 var buffer=await bitmap.GetPixelsAsync();
                 var file=await StorageFile.GetFileFromPathAsync(CreateFile(Path.Combine(folder,route+".png")));
+                using var stream=await file.OpenAsync(FileAccessMode.ReadWrite);
+                var encoder=await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId,stream);
+                encoder.SetPixelData(BitmapPixelFormat.Bgra8,BitmapAlphaMode.Premultiplied,(uint)bitmap.PixelWidth,(uint)bitmap.PixelHeight,96,96,buffer.ToArray());
+                await encoder.FlushAsync();
+            }
+            if(Environment.GetCommandLineArgs().Contains("--ui-smoke"))
+            foreach(var theme in new[]{AppTheme.Light,AppTheme.Dark})
+            {
+                Application.Current!.UserAppTheme=theme;shell.Navigate("devices");await Task.Delay(500);
+                var bitmap=new RenderTargetBitmap();await bitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)window.Content);
+                var buffer=await bitmap.GetPixelsAsync();
+                var file=await StorageFile.GetFileFromPathAsync(CreateFile(Path.Combine(folder,theme.ToString().ToLowerInvariant()+"-devices.png")));
                 using var stream=await file.OpenAsync(FileAccessMode.ReadWrite);
                 var encoder=await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId,stream);
                 encoder.SetPixelData(BitmapPixelFormat.Bgra8,BitmapAlphaMode.Premultiplied,(uint)bitmap.PixelWidth,(uint)bitmap.PixelHeight,96,96,buffer.ToArray());

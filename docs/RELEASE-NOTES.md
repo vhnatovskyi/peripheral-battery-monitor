@@ -1,3 +1,12 @@
+## v0.5.2
+
+- Give the combined indicator an opaque dark center and stable colored device sections; remove digit outlines that obscured the ring.
+- Remove dark pixel halos from separate battery captions and strengthen the colored battery outline.
+- Normalize transparent application-icon margins and embed the larger mark in the native executable as well as the launcher.
+- Refresh launcher icon resources during installation and upgrade.
+- Add system, light and dark appearance modes, including appropriate contrast for notification icons on a light taskbar.
+- Replace refresh text with a toolbar icon and tooltip, add disconnect hover feedback, and further compact the device dashboard.
+
 ## v0.5.1
 
 - Show the application version in the window title next to the system window controls.

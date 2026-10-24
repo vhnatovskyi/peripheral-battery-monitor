@@ -6,6 +6,7 @@ namespace PeripheralBatteryMonitor.Desktop.Services;
 public sealed class MonitorSettings
 {
     public string Language { get; set; } = "uk";
+    public string Theme { get; set; } = "System";
     public string TrayMode { get; set; } = "Combined";
     public string TrayStyle { get; set; } = "Battery";
     public bool AutoStart { get; set; }
@@ -29,12 +30,13 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.1";
+    public string Version { get; } = "0.5.2";
     public SettingsStore()
     {
         try { Value = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(StateRoot,"settings.json")),AppJsonContext.Default.MonitorSettings) ?? new(); }
         catch (Exception error) when(error is IOException or JsonException or UnauthorizedAccessException) { }
         if(Value.Language is not ("uk" or "en")) Value.Language="uk";
+        if(Value.Theme is not ("System" or "Light" or "Dark"))Value.Theme="System";
         if(Value.TrayMode is not ("Combined" or "Separate")) Value.TrayMode="Combined";
         if(Value.TrayStyle is not ("Battery" or "Percent")) Value.TrayStyle="Battery";
         Value.LowBatteryThreshold=Math.Clamp(Value.LowBatteryThreshold,5,50);

@@ -10,23 +10,34 @@ internal sealed class DeviceCardView : Border
     private readonly ProgressBar charge=new() { HeightRequest=4,BackgroundColor=Color.FromArgb("#344457") };
     private readonly ImageButton disconnect=new() { Source="unplug.png",WidthRequest=28,HeightRequest=28,Padding=6,BackgroundColor=Colors.Transparent };
     private DeviceReading? reading;
+    private string? iconKey,disconnectKey;
     public DeviceCardView()
     {
-        StrokeShape=new RoundRectangle { CornerRadius=12 };Stroke=Color.FromArgb("#2C3A4D");BackgroundColor=Color.FromArgb("#1B2635");Padding=12;HeightRequest=144;
+        StrokeShape=new RoundRectangle { CornerRadius=10 };Design.ThemePanel(this);Padding=10;HeightRequest=128;
+        charge.SetAppThemeColor(VisualElement.BackgroundColorProperty,Color.FromArgb("#DCE4ED"),Color.FromArgb("#344457"));
         transport.FontSize=11;time.FontSize=10;
         var head=new Grid { ColumnDefinitions=[new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)],ColumnSpacing=8 };
         head.Add(icon);head.Add(new VerticalStackLayout { Spacing=3,Children={name,transport} },1);head.Add(disconnect,2);
         name.LineBreakMode=LineBreakMode.TailTruncation;name.MaxLines=1;
         var stack=Design.Stack(head,percent,charge,time);stack.Spacing=5;Content=stack;
         disconnect.Clicked+=Disconnect;
+        var pointer=new PointerGestureRecognizer();
+        pointer.PointerEntered+=(_,_)=>{disconnect.BackgroundColor=Color.FromArgb(Design.IsDark?"#34485F":"#DFE9F5");disconnect.BorderColor=Color.FromArgb(Design.IsDark?"#7D95B2":"#7692AF");};
+        pointer.PointerExited+=(_,_)=>{disconnect.BackgroundColor=Colors.Transparent;disconnect.BorderColor=Colors.Transparent;};
+        disconnect.CornerRadius=6;disconnect.BorderWidth=1;disconnect.BorderColor=Colors.Transparent;disconnect.GestureRecognizers.Add(pointer);
     }
     public void Update(DeviceReading value)
     {
         // Replacing FileImageSource on every state tick restarts the native image load.
-        if(reading==null || reading.Kind!=value.Kind)icon.Source=value.Kind+".png";
+        string key=value.Kind+(Design.IsDark?"":"_light")+".png";
+        if(iconKey!=key){icon.Source=key;iconKey=key;}
+        string unplug=Design.IsDark?"unplug.png":"unplug_light.png";
+        if(disconnectKey!=unplug){disconnect.Source=unplug;disconnectKey=unplug;}
         reading=value;name.Text=value.Name;transport.Text=value.Transport;
         percent.Text=value.Percent is int level?level+"%":"—";
-        charge.Progress=(value.Percent??0)/100d;charge.ProgressColor=Color.FromArgb(value.Accent);
+        charge.Progress=(value.Percent??0)/100d;
+        var accent=Color.FromArgb(value.Accent);
+        charge.ProgressColor=Design.IsDark?accent:Color.FromRgb(accent.Red*.62f,accent.Green*.62f,accent.Blue*.62f);
         time.Text=value.Percent.HasValue?Design.T("Оновлено ","Updated ")+value.UpdatedUtc.ToLocalTime().ToString("HH:mm"):Design.T("Заряд недоступний","Battery unavailable");
         disconnect.IsVisible=value.CanDisconnect;
         ToolTipProperties.SetText(disconnect,Design.T("Відʼєднати Bluetooth","Disconnect Bluetooth"));

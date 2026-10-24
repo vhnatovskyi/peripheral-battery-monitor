@@ -9,6 +9,7 @@ public sealed class AppRuntime
     public IReadOnlyList<DeviceReading> Readings { get; private set; } = [];
     public event Action? Changed;
     public event Action? SettingsChanged;
+    public event Action? AppearanceChanged;
     public event Action<string>? NavigateRequested;
     public event Action? ShowRequested;
     private readonly bool smoke=Environment.GetCommandLineArgs().Contains("--ui-smoke");
@@ -88,7 +89,9 @@ public sealed class AppRuntime
         }catch(Exception error) when(error is HttpRequestException or IOException or TaskCanceledException) { }
     }
     public void SaveSettings(MonitorSettings value)
-    { Settings.Save(value);SettingsChanged?.Invoke();tray?.Invalidate();Tick(); }
+    { Settings.Save(value);ApplyTheme();SettingsChanged?.Invoke();tray?.Invalidate();Tick(); }
+    public void ApplyTheme()=>Application.Current!.UserAppTheme=Settings.Value.Theme switch { "Light"=>AppTheme.Light,"Dark"=>AppTheme.Dark,_=>AppTheme.Unspecified };
+    public void RefreshAppearance(){AppearanceChanged?.Invoke();Changed?.Invoke();tray?.Invalidate();}
     public void Refresh(){Devices.Refresh();}
     public void Show(){nativeWindow?.AppWindow.Show();nativeWindow?.Activate();ShowRequested?.Invoke();}
     private void HandleTrayAction(string action)

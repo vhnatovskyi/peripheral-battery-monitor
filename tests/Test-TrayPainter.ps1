@@ -34,6 +34,13 @@ try{
     Assert ($captionPixels -gt 15) 'Native-size charge digits are too small or missing'
 }finally{$native.Dispose()}
 'Tray colors, circle sections and percentage placement regression tests passed'
+$light=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render([int[]]@(79),$colors,$false,$false,16,$true)
+try{
+    Assert ($light.GetPixel(0,15).A -eq 0) 'Separate icon gained an opaque background box'
+    $darkCaption=0
+    for($y=9;$y -lt 16;$y++){for($x=0;$x -lt 16;$x++){$p=$light.GetPixel($x,$y);if($p.A -eq 255 -and $p.R -lt 60 -and $p.G -lt 60 -and $p.B -lt 60){$darkCaption++}}}
+    Assert ($darkCaption -gt 15) 'Light-taskbar caption does not have dark contrast'
+}finally{$light.Dispose()}
 foreach($size in @(16,20,24,32)){
     foreach($combined in @($false,$true)){
         foreach($value in @(0,82,93,100,-1)){

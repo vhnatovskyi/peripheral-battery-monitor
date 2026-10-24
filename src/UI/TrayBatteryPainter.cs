@@ -25,15 +25,14 @@ namespace PeripheralBatteryMonitor.UI
             "01110100001000011110100011000101110", "11111000010001000100010000100001000",
             "01110100011000101110100011000101110", "01110100011000101111000010000101110"
         };
-        private static void PixelCaption(Graphics g, string label, int size, bool combined)
+        private static void PixelCaption(Graphics g, string label, int size, bool combined,bool lightBackground)
         {
             int columns=label.Length>2 ? 3 : 5;
             int scale=Math.Max(1,size/16), width=(label.Length*(columns+1)-1)*scale;
             int x=(size-width)/2, y=combined ? (size-7*scale)/2 : size-7*scale;
             g.ResetTransform();
             g.SmoothingMode=SmoothingMode.None;
-            // Dark backing preserves contrast on both light and dark taskbars.
-            for(int pass=0;pass<2;pass++)
+            using(var foreground=new SolidBrush(lightBackground && !combined ? Color.FromArgb(24,36,53) : Color.White))
             for(int i=0;i<label.Length;i++)
             for(int row=0;row<7;row++)
             for(int col=0;col<columns;col++)
@@ -41,8 +40,7 @@ namespace PeripheralBatteryMonitor.UI
                 bool lit=label[i]=='-' ? row==3 : (columns==3 ? Digits : WideDigits)[label[i]-'0'][row*columns+col]=='1';
                 if(!lit)continue;
                 int px=x+i*(columns+1)*scale+col*scale, py=y+row*scale;
-                if(pass==0)g.FillRectangle(Brushes.Black,px-1,py-1,scale+2,scale+2);
-                else g.FillRectangle(Brushes.White,px,py,scale,scale);
+                g.FillRectangle(foreground,px,py,scale,scale);
             }
         }
         private static GraphicsPath Round(RectangleF r, float radius)
@@ -54,6 +52,8 @@ namespace PeripheralBatteryMonitor.UI
         public static Bitmap Render(int[] levels, Color[] deviceColors, bool combined, bool emphasizePercentage)
         { return Render(levels,deviceColors,combined,emphasizePercentage,32); }
         public static Bitmap Render(int[] levels, Color[] deviceColors, bool combined, bool emphasizePercentage,int iconSize)
+        { return Render(levels,deviceColors,combined,emphasizePercentage,iconSize,false); }
+        public static Bitmap Render(int[] levels, Color[] deviceColors, bool combined, bool emphasizePercentage,int iconSize,bool lightBackground)
         {
             var bitmap=new Bitmap(iconSize,iconSize);
             using(var g=Graphics.FromImage(bitmap))
@@ -63,6 +63,7 @@ namespace PeripheralBatteryMonitor.UI
                 g.TextRenderingHint=System.Drawing.Text.TextRenderingHint.SingleBitPerPixelGridFit;
                 var values=(levels ?? new int[0]).Take(4).ToArray();
                 if(values.Length==0) values=new[]{-1};
+                if(combined)using(var background=new SolidBrush(Color.FromArgb(16,24,32)))g.FillEllipse(background,1,1,30,30);
                 for(int i=0;i<values.Length;i++)
                 {
                     Color color=values[i]<0 ? Color.FromArgb(145,150,158) :
@@ -71,12 +72,13 @@ namespace PeripheralBatteryMonitor.UI
                     {
                         float segment=360f/values.Length, gap=values.Length>1 ? 10 : 3;
                         float start=-90+i*segment+gap/2, sweep=segment-gap;
-                        using(var track=new Pen(Color.FromArgb(80,color),3)) g.DrawArc(track,2,2,28,28,start,sweep);
-                        if(values[i]>0) using(var fill=new Pen(color,3)) g.DrawArc(fill,2,2,28,28,start,sweep*Math.Min(values[i],100)/100f);
+                        // A stable colored section identifies each device. Exact levels
+                        // remain in the tooltip; the center shows the lowest known level.
+                        using(var fill=new Pen(color,3.5f)) g.DrawArc(fill,2,2,28,28,start,sweep);
                         continue;
                     }
-                    var body=new RectangleF(3,1,23,9);
-                    using(var pen=new Pen(color,1.6f))
+                    var body=new RectangleF(2,1,25,10);
+                    using(var pen=new Pen(color,2f))
                     using(var brush=new SolidBrush(color))
                     using(var outline=Round(body,2))
                     {
@@ -94,11 +96,11 @@ namespace PeripheralBatteryMonitor.UI
                 string label=known.Length>0 ? known.Min().ToString() : "--";
                 if(combined)
                 {
-                    PixelCaption(g,label,iconSize,true);
+                    PixelCaption(g,label,iconSize,true,lightBackground);
                     return bitmap;
                 }
                 // Keep the percentage on its own baseline below the battery.
-                PixelCaption(g,label,iconSize,false);
+                PixelCaption(g,label,iconSize,false,lightBackground);
             }
             return bitmap;
         }

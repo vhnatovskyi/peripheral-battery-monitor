@@ -9,9 +9,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ApplicationTitle>Peripheral Battery Monitor</ApplicationTitle>
+    <ApplicationIcon>../../assets/branding/app-icon.ico</ApplicationIcon>
     <ApplicationId>io.github.vhnatovskyi.peripheralbatterymonitor</ApplicationId>
-    <ApplicationDisplayVersion>0.5.1</ApplicationDisplayVersion>
-    <ApplicationVersion>51</ApplicationVersion>
+    <ApplicationDisplayVersion>0.5.2</ApplicationDisplayVersion>
+    <ApplicationVersion>52</ApplicationVersion>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <SelfContained>false</SelfContained>

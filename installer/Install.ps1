@@ -43,7 +43,14 @@ try {
     if (-not $acquired) { throw 'Please close Peripheral Battery Monitor and run the installer again.' }
     try {
         $launcher = Join-Path $install 'PeripheralBatteryMonitor.exe'
-        if (-not (Test-Path -LiteralPath $launcher)) { Copy-Item -LiteralPath (Join-Path $destination 'PeripheralBatteryMonitor.exe') -Destination $launcher }
+        $pendingLauncher=Join-Path $install 'launcher.pending'
+        Copy-Item -LiteralPath (Join-Path $destination 'PeripheralBatteryMonitor.exe') -Destination $pendingLauncher -Force
+        for($attempt=0;$attempt -lt 20;$attempt++){
+            try{
+                if(Test-Path -LiteralPath $launcher){[IO.File]::Replace($pendingLauncher,$launcher,(Join-Path $install 'launcher.previous'))}else{[IO.File]::Move($pendingLauncher,$launcher)}
+                break
+            }catch [IO.IOException]{if($attempt -eq 19){throw};Start-Sleep -Milliseconds 200}
+        }
         $pointer = Join-Path $install 'current.txt'
         $pending = Join-Path $install 'current.pending'
         [IO.File]::WriteAllText($pending, $version)

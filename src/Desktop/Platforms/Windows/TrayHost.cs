@@ -15,6 +15,8 @@ public sealed class TrayHost : IDisposable
     private readonly Dictionary<uint,IntPtr> icons=[];
     private string fingerprint="";
     private MonitorSettings settings=new();
+    private bool lightTaskbar=IsLightTaskbar();
+    private static bool IsLightTaskbar(){try{return Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize","SystemUsesLightTheme",0) is int mode && mode==1;}catch{return false;}}
     private readonly uint taskbarCreated=RegisterWindowMessage("TaskbarCreated");
     [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]
     private struct IconData
@@ -58,7 +60,7 @@ public sealed class TrayHost : IDisposable
         for(int i=0;i<groups.Length;i++)
         {
             uint id=(uint)i+1;used.Add(id);var group=groups[i];
-            using var bitmap=TrayBatteryPainter.Render(group.Select(d=>d.Percent ?? -1).ToArray(),group.Select(d=>ColorTranslator.FromHtml(d.Accent)).ToArray(),combined,current.TrayStyle=="Percent",Math.Max(16,GetSystemMetricsForDpi(49,GetDpiForWindow(window))));
+            using var bitmap=TrayBatteryPainter.Render(group.Select(d=>d.Percent ?? -1).ToArray(),group.Select(d=>{var color=ColorTranslator.FromHtml(d.Accent);return lightTaskbar && !combined ? Color.FromArgb((int)(color.R*.62),(int)(color.G*.62),(int)(color.B*.62)):color;}).ToArray(),combined,current.TrayStyle=="Percent",Math.Max(16,GetSystemMetricsForDpi(49,GetDpiForWindow(window))),lightTaskbar);
             IntPtr image=bitmap.GetHicon();
             var data=Data(id);data.Flags=1|2|4;data.Message=Callback;data.Icon=image;data.Tip=Tooltip(group,current.Language);
             Shell_NotifyIcon(icons.ContainsKey(id) ? 1u : 0u,ref data);
@@ -79,6 +81,7 @@ public sealed class TrayHost : IDisposable
     private IntPtr WindowMessage(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam,UIntPtr id,IntPtr data)
     {
         if(message==taskbarCreated){foreach(var image in icons.Values)DestroyIcon(image);icons.Clear();Invalidate();}
+        if(message is 0x1A or 0x31A){lightTaskbar=IsLightTaskbar();Invalidate();}
         if(message==Callback)
         {
             int mouse=(int)lParam.ToInt64();

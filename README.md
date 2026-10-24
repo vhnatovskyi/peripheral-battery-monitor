@@ -21,6 +21,8 @@ Other Bluetooth and USB/HID devices are discovered automatically. Their percenta
 
 All connected devices use the same compact cards, with device-type icons and Bluetooth/receiver/USB connection symbols. Cards appear and disappear automatically. The window fits the current number of cards; additional pages replace scrolling when the display is full.
 
+Appearance follows the Windows theme by default. Settings also offers explicit light and dark themes. Notification icon captions adapt to the taskbar background independently of the application's selected theme.
+
 Windows device nodes and Classic/BLE association endpoints are grouped by their physical container ID. A device is connected when any of its Bluetooth endpoints is active, so an inactive Classic endpoint cannot hide an active BLE connection. Connection information is checked every three seconds. Disconnected or unconfirmed devices are excluded from the dashboard, tray minimum and alerts.
 
 Generic BLE devices exposing the standard Battery Service (180F) and Battery Level characteristic (2A19) are read at connection and manual Refresh. The app subscribes to battery notifications when supported; it does not periodically query the battery. Devices without notifications retain their last report until Refresh/reconnection. Other devices use available Windows battery properties. Proprietary receiver protocols still need dedicated providers.
