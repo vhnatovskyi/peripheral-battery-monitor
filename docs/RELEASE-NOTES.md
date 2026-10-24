@@ -1,3 +1,11 @@
+## v0.5.4
+
+- Add an optional always-on-top battery widget with live device levels, device colors, light/dark themes, and remembered screen position.
+- Enable or disable it in Settings. Use **Save and move widget** to drag its header; switching to any other application locks it again.
+- Adjust widget transparency from 0% to 80% in Settings; preserve the value across restarts.
+- Keep the widget click-through by default, including over windowed games. It does not take focus or add a taskbar button. Exclusive fullscreen applications may cover desktop overlays.
+- Retain compact shared-runtime packaging; existing installations reuse their runtime components.
+
 ## v0.5.3
 
 - Place the About headline and version next to the application icon in a compact, vertically centered header.

@@ -20,6 +20,17 @@ internal sealed class SettingsPage : ContentPage
         var startup=new Switch { IsToggled=draft.AutoStart };startup.Toggled+=(_,e)=>draft.AutoStart=e.Value;
         var updates=new Switch { IsToggled=draft.CheckForUpdates };updates.Toggled+=(_,e)=>draft.CheckForUpdates=e.Value;
         var alerts=new Switch { IsToggled=draft.LowBatteryAlerts };alerts.Toggled+=(_,e)=>draft.LowBatteryAlerts=e.Value;
+        var widget=new Switch { IsToggled=draft.WidgetEnabled,AutomationId="EnableBatteryWidget" };
+        var move=Design.Button(Design.T("Зберегти й перемістити віджет","Save and move widget"),async(_,_)=>
+        {
+            try { AppRuntime.Current.SaveSettings(draft);AppRuntime.Current.MoveWidget(); }
+            catch(Exception error){await DisplayAlertAsync(Design.T("Помилка","Error"),error.Message,"OK");}
+        });
+        move.IsEnabled=draft.WidgetEnabled;
+        widget.Toggled+=(_,e)=>{draft.WidgetEnabled=e.Value;move.IsEnabled=e.Value;};
+        var transparency=Design.Label((100-draft.WidgetOpacity)+"%");
+        var opacity=new Slider { Minimum=0,Maximum=80,Value=100-draft.WidgetOpacity,AutomationId="WidgetTransparency" };
+        opacity.ValueChanged+=(_,e)=>{draft.WidgetOpacity=100-(int)Math.Round(e.NewValue);transparency.Text=(100-draft.WidgetOpacity)+"%";};
         var threshold=Design.Label(draft.LowBatteryThreshold+"%");
         var slider=new Slider { Minimum=5,Maximum=50,Value=draft.LowBatteryThreshold,MinimumTrackColor=Color.FromArgb("#55DEAD") };
         slider.ValueChanged+=(_,e)=>{draft.LowBatteryThreshold=(int)Math.Round(e.NewValue);threshold.Text=draft.LowBatteryThreshold+"%";};
@@ -28,9 +39,12 @@ internal sealed class SettingsPage : ContentPage
         var stack=Design.Stack(
             Design.Hint(Design.T("Підключені пристрої зʼявляються автоматично.","Connected devices appear automatically.")),
             Design.Panel(Design.Stack(Design.Label(Design.T("Вигляд і мова","Appearance and language"),14,true),Row(Design.T("Іконки в треї","Tray icons"),mode),Row(Design.T("Мова","Language"),language),Row(Design.T("Тема","Theme"),theme))),
+            Design.Panel(Design.Stack(Row(Design.T("Віджет поверх вікон","Always-on-top widget"),widget),Row(Design.T("Прозорість","Transparency"),transparency),opacity,Design.Hint(Design.T("Кліки проходять крізь віджет. Переміщення — лише з цієї сторінки; перехід до гри чи іншої програми блокує його.","Clicks pass through the widget. Enable moving here; switching to a game or another app locks it again.")),move)),
             Design.Panel(Design.Stack(Design.Label(Design.T("Сповіщення","Notifications"),16,true),Row(Design.T("Низький заряд","Low battery"),alerts),Row(Design.T("Поріг сповіщення","Alert threshold"),threshold),slider)),
-            Design.Panel(Design.Stack(Design.Label(Design.T("Програма","Application"),16,true),Row(Design.T("Запускати з Windows","Start with Windows"),startup),Row(Design.T("Перевіряти оновлення щодня","Check for updates daily"),updates))),save);
-        stack.Padding=16;Content=new ScrollView { Content=stack };
+            Design.Panel(Design.Stack(Design.Label(Design.T("Програма","Application"),16,true),Row(Design.T("Запускати з Windows","Start with Windows"),startup),Row(Design.T("Перевіряти оновлення щодня","Check for updates daily"),updates))));
+        stack.Padding=16;
+        var layout=new Grid { RowDefinitions=[new(GridLength.Star),new(GridLength.Auto)] };
+        layout.Add(new ScrollView { Content=stack });save.Margin=new Thickness(16,4,16,12);layout.Add(save,0,1);Content=layout;
     }
     private static Grid Row(string title,View control)
     {var row=new Grid { ColumnDefinitions=[new(GridLength.Star),new(GridLength.Auto)],ColumnSpacing=16 };row.Add(Design.Label(title));row.Add(control,1);return row;}

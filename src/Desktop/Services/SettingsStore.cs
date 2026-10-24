@@ -13,6 +13,8 @@ public sealed class MonitorSettings
     public bool LowBatteryAlerts { get; set; } = true;
     public int LowBatteryThreshold { get; set; } = 20;
     public bool CheckForUpdates { get; set; } = true;
+    public bool WidgetEnabled { get; set; }
+    public int WidgetOpacity { get; set; } = 100;
     public MonitorSettings Copy() => (MonitorSettings)MemberwiseClone();
 }
 
@@ -30,7 +32,7 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.3";
+    public string Version { get; } = "0.5.4";
     public SettingsStore()
     {
         try { Value = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(StateRoot,"settings.json")),AppJsonContext.Default.MonitorSettings) ?? new(); }
@@ -40,6 +42,7 @@ public sealed class SettingsStore
         if(Value.TrayMode is not ("Combined" or "Separate")) Value.TrayMode="Combined";
         if(Value.TrayStyle is not ("Battery" or "Percent")) Value.TrayStyle="Battery";
         Value.LowBatteryThreshold=Math.Clamp(Value.LowBatteryThreshold,5,50);
+        Value.WidgetOpacity=Math.Clamp(Value.WidgetOpacity,20,100);
     }
     public void Save(MonitorSettings settings)
     {

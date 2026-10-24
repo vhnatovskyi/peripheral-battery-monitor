@@ -60,6 +60,44 @@ internal static class UiSmoke
             }
             if(Environment.GetCommandLineArgs().Contains("--ui-smoke"))
             {
+                using(var widget=new BatteryWidget(window,false))
+                {
+                    widget.Update(Services.AppRuntime.Current.Readings);
+                    if(widget.Window.AppWindow.Presenter is not Microsoft.UI.Windowing.OverlappedPresenter overlay || !overlay.IsAlwaysOnTop || overlay.IsResizable)
+                        throw new InvalidOperationException("Widget must remain on top without resize borders");
+                    if(widget.Window.AppWindow.IsShownInSwitchers || !widget.ClickThrough || widget.DeviceCount!=3)
+                        throw new InvalidOperationException("Widget must be passive and display connected devices");
+                    widget.SetMoving(true);
+                    if(widget.ClickThrough || !widget.IsMoving)throw new InvalidOperationException("Explicit widget positioning did not unlock dragging");
+                    widget.CheckInteractionFocus(false); // Windowed games and other apps must disarm dragging.
+                    if(!widget.ClickThrough || widget.IsMoving)throw new InvalidOperationException("Switching away must restore click-through");
+                    widget.CheckInteractionFocus(true);
+                    if(!widget.ClickThrough)throw new InvalidOperationException("Returning to the app must not silently unlock the widget");
+                    widget.Update(Services.AppRuntime.Current.Readings.Take(1).ToArray());
+                    if(widget.DeviceCount!=1)throw new InvalidOperationException("Disconnected devices remain in the widget");
+                    widget.Update(Services.AppRuntime.Current.Readings);
+                    int originalOpacity=Services.AppRuntime.Current.Settings.Value.WidgetOpacity;
+                    Services.AppRuntime.Current.Settings.Value.WidgetOpacity=50;widget.Update(Services.AppRuntime.Current.Readings);
+                    if(widget.NativeOpacity is <127 or >128)throw new InvalidOperationException("Widget transparency was not applied to the native window");
+                    Services.AppRuntime.Current.Settings.Value.WidgetOpacity=originalOpacity;widget.Update(Services.AppRuntime.Current.Readings);
+                    var settings=new Services.MonitorSettings { WidgetEnabled=true,WidgetOpacity=50 };
+                    var json=System.Text.Json.JsonSerializer.Serialize(settings,Services.AppJsonContext.Default.MonitorSettings);
+                    var restored=System.Text.Json.JsonSerializer.Deserialize(json,Services.AppJsonContext.Default.MonitorSettings);
+                    if(restored?.WidgetEnabled!=true || restored.WidgetOpacity!=50)
+                        throw new InvalidOperationException("Widget setting did not round-trip");
+                    foreach(var theme in new[]{AppTheme.Light,AppTheme.Dark})
+                    {
+                        Application.Current!.UserAppTheme=theme;widget.Update(Services.AppRuntime.Current.Readings);await Task.Delay(300);
+                        var widgetbitmap=new RenderTargetBitmap();await widgetbitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)widget.Window.Content);
+                        if(widgetbitmap.PixelWidth<250 || widgetbitmap.PixelHeight<100)throw new InvalidOperationException("Widget layout failed");
+                        var widgetbuffer=await widgetbitmap.GetPixelsAsync();
+                        var widgetfile=await StorageFile.GetFileFromPathAsync(CreateFile(Path.Combine(folder,theme.ToString().ToLowerInvariant()+"-widget.png")));
+                        using var widgetstream=await widgetfile.OpenAsync(FileAccessMode.ReadWrite);
+                        var widgetencoder=await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId,widgetstream);
+                        widgetencoder.SetPixelData(BitmapPixelFormat.Bgra8,BitmapAlphaMode.Premultiplied,(uint)widgetbitmap.PixelWidth,(uint)widgetbitmap.PixelHeight,96,96,widgetbuffer.ToArray());
+                        await widgetencoder.FlushAsync();
+                    }
+                }
                 shell.FlyoutIsPresented=true;await Task.Delay(400);
                 var bitmap=new RenderTargetBitmap();await bitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)window.Content);
                 var buffer=await bitmap.GetPixelsAsync();

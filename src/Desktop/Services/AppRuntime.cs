@@ -17,6 +17,7 @@ public sealed class AppRuntime
     private EventWaitHandle? exitEvent,showEvent;
     private IDispatcherTimer? timer;
     private Platforms.Windows.TrayHost? tray;
+    private Platforms.Windows.BatteryWidget? widget;
     private Microsoft.UI.Xaml.Window? nativeWindow;
     private Window? mauiWindow;
     private ContentPage? fittedPage;
@@ -58,6 +59,7 @@ public sealed class AppRuntime
             return;
         }
         tray=new Platforms.Windows.TrayHost(nativeWindow,HandleTrayAction);
+        SyncWidget();
         Devices.Start();
         if(Environment.GetEnvironmentVariable("PBM_UI_LIVE_ROOT") is string liveFolder && liveFolder.Length>0)
             _=CaptureLiveAsync(liveFolder);
@@ -70,7 +72,7 @@ public sealed class AppRuntime
     {
         if(exitEvent?.WaitOne(0)==true){Exit();return;}
         if(showEvent?.WaitOne(0)==true)Show();
-        Readings=Devices.Snapshot();tray?.Update(Readings,Settings.Value);Changed?.Invoke();
+        Readings=Devices.Snapshot();tray?.Update(Readings,Settings.Value);widget?.Update(Readings);Changed?.Invoke();
         foreach(var device in Readings.Where(d=>d.Percent.HasValue))
         {
             if(device.Percent>Settings.Value.LowBatteryThreshold+5)alerted[device.Id]=false;
@@ -95,9 +97,17 @@ public sealed class AppRuntime
         }catch(Exception error) when(error is HttpRequestException or IOException or TaskCanceledException) { }
     }
     public void SaveSettings(MonitorSettings value)
-    { Settings.Save(value);ApplyTheme();SettingsChanged?.Invoke();tray?.Invalidate();Tick(); }
+    { Settings.Save(value);ApplyTheme();SyncWidget();SettingsChanged?.Invoke();tray?.Invalidate();Tick(); }
+    private void SyncWidget()
+    {
+        if(nativeWindow==null || smoke)return;
+        if(Settings.Value.WidgetEnabled)widget??=new Platforms.Windows.BatteryWidget(nativeWindow);
+        else { widget?.Dispose();widget=null; }
+        widget?.Update(Readings);
+    }
+    public void MoveWidget()=>widget?.BeginMove();
     public void ApplyTheme()=>Application.Current!.UserAppTheme=Settings.Value.Theme switch { "Light"=>AppTheme.Light,"Dark"=>AppTheme.Dark,_=>AppTheme.Unspecified };
-    public void RefreshAppearance(){UpdateCaptionTheme();AppearanceChanged?.Invoke();Changed?.Invoke();tray?.Invalidate();}
+    public void RefreshAppearance(){UpdateCaptionTheme();widget?.Update(Readings);AppearanceChanged?.Invoke();Changed?.Invoke();tray?.Invalidate();}
     private void UpdateCaptionTheme()
     {
         if(nativeWindow==null)return;
@@ -122,7 +132,7 @@ public sealed class AppRuntime
     {
         if(Shell.Current?.CurrentPage is not ContentPage page)return;
         if(page is Views.DevicesPage devices){devices.FitToDevices();return;}
-        ResizeForPage(page,page is Views.SettingsPage?740:page is Views.ReleasesPage?560:470);
+        ResizeForPage(page,page is Views.SettingsPage?820:page is Views.ReleasesPage?560:470);
     }
     public void ResizeForPage(ContentPage page,double height)
     {
@@ -143,7 +153,7 @@ public sealed class AppRuntime
     }
     public void Exit()
     {
-        if(exiting)return;exiting=true;timer?.Stop();tray?.Dispose();
+        if(exiting)return;exiting=true;timer?.Stop();widget?.Dispose();tray?.Dispose();
         try{instance?.ReleaseMutex();}catch(ApplicationException){}
         instance?.Dispose();exitEvent?.Dispose();showEvent?.Dispose();
         // Process exit releases pending device reads without delaying an upgrade.
