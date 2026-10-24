@@ -5,6 +5,18 @@ using System.Windows.Forms;
 
 namespace PeripheralBatteryMonitor.UI
 {
+    internal sealed class CenteredIconButton : Button
+    {
+        private bool hovered;
+        protected override void OnMouseEnter(EventArgs e) { hovered=true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hovered=false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            e.Graphics.Clear(hovered ? FlatAppearance.MouseOverBackColor : BackColor);
+            if(Image != null) e.Graphics.DrawImageUnscaled(Image,(ClientSize.Width-Image.Width)/2,(ClientSize.Height-Image.Height)/2);
+            if(Focused && ShowFocusCues) ControlPaint.DrawFocusRectangle(e.Graphics,new Rectangle(2,2,Width-4,Height-4),ForeColor,BackColor);
+        }
+    }
     public sealed class DeviceCard : Control
     {
         private string deviceName = "", transport = "", status = "", seen = "";
@@ -13,6 +25,7 @@ namespace PeripheralBatteryMonitor.UI
         private bool hover; private string connectedLabel = "Connected", lowLabel = "Low battery";
         private readonly ToolTip disconnectTip = new ToolTip();
         public Button DisconnectButton { get; private set; }
+        public bool CanDisconnect { get; private set; }
         private readonly Bitmap disconnectImage;
         public void SetLabels(string connected, string low) { if(connectedLabel == connected && lowLabel == low) return; connectedLabel = connected; lowLabel = low; Invalidate(); }
         public DeviceCard()
@@ -26,11 +39,16 @@ namespace PeripheralBatteryMonitor.UI
             {
                 g.SmoothingMode = SmoothingMode.AntiAlias;
                 pen.StartCap = pen.EndCap = LineCap.Round;
-                g.DrawArc(pen,2,3,12,11,-45,270); g.DrawLine(pen,8,1,8,8);
+                // Two separated plug halves, rather than a power/off symbol.
+                g.DrawLine(pen,1,8,4,8); g.DrawRectangle(pen,4,5,3,6);
+                g.DrawLine(pen,7,6,8,6); g.DrawLine(pen,7,10,8,10);
+                g.DrawRectangle(pen,11,5,3,6); g.DrawLine(pen,14,8,15,8);
+                g.DrawLine(pen,8,2,10,4); g.DrawLine(pen,8,14,10,12);
             }
-            DisconnectButton = new Button { Size = new Size(24,24), Location = new Point(Width-34,9),
+            DisconnectButton = new CenteredIconButton { Size = new Size(24,24), Location = new Point(Width-34,9),
                 Anchor = AnchorStyles.Top | AnchorStyles.Right, FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(27,36,50), Image = disconnectImage, TabStop = true,
+                ImageAlign = ContentAlignment.MiddleCenter, TextImageRelation = TextImageRelation.Overlay, Padding = new Padding(0),
                 AccessibleName = "Disconnect", AccessibleRole = AccessibleRole.PushButton };
             DisconnectButton.FlatAppearance.BorderSize = 0;
             DisconnectButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(75,42,50);
@@ -38,12 +56,17 @@ namespace PeripheralBatteryMonitor.UI
         }
         public void SetDisconnectStatus(bool enabled, string caption)
         {
-            DisconnectButton.Enabled = enabled;
+            if(CanDisconnect != enabled) { CanDisconnect = enabled; Invalidate(); }
+            DisconnectButton.Visible = enabled;
             if(disconnectTip.GetToolTip(DisconnectButton) != caption)
             { DisconnectButton.AccessibleName = caption; disconnectTip.SetToolTip(DisconnectButton,caption); }
         }
         protected override void Dispose(bool disposing)
-        { if(disposing) { disconnectTip.Dispose(); disconnectImage.Dispose(); } base.Dispose(disposing); }
+        {
+            if(disposing) { DisconnectButton.Image = null; disconnectTip.Dispose(); }
+            base.Dispose(disposing);
+            if(disposing) disconnectImage.Dispose();
+        }
         public void SetData(string name, string connection, int? percent, string state, string reportTime, Color color)
         {
             if (deviceName == name && transport == connection && level == percent && status == state && seen == reportTime && accent == color) return;
@@ -78,7 +101,7 @@ namespace PeripheralBatteryMonitor.UI
             using (var tile = Round(new RectangleF(16, 16, 38, 38), 10))
             using (var fill = new SolidBrush(Color.FromArgb(30, accent))) g.FillPath(fill, tile);
             using (var pen = new Pen(accent, 1.8f)) { pen.StartCap = pen.EndCap = LineCap.Round; DeviceIcon(g, pen, deviceName, 23, 22); }
-            Label(g, deviceName, 10, Color.White, new RectangleF(65, 17, w-106, 22), true);
+            Label(g, deviceName, 10, Color.White, new RectangleF(65, 17, w-(CanDisconnect ? 106 : 81), 22), true);
             using (var pen = new Pen(muted, 1.4f)) ConnectionIcon(g, pen, transport, 66, 41);
             Label(g, transport, 8, muted, new RectangleF(81, 39, w-97, 19), false);
             Label(g, level.HasValue ? level + "%" : "--", 27, Color.White, new RectangleF(15, 64, 145, 47), true);

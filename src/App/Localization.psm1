@@ -1,4 +1,5 @@
 ﻿$uk=@{
+ 'Devices'='Пристрої'; '{0} connected'='Підключено: {0}'
  'General'='Загальні'; 'Appearance, language and notifications.'='Вигляд, мова та сповіщення.'
  'Start with Windows'='Запускати з Windows'; 'Check for releases daily'='Перевіряти релізи раз на добу'
  'Tray icons'='Іконки біля годинника'; 'Combined (up to 4)'='Спільна (до 4 пристроїв)'; 'Separate icons'='Окремі іконки'

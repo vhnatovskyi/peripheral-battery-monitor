@@ -66,6 +66,7 @@ namespace Aj139Battery
         private long refreshVersion;
         private volatile bool stopping;
         private BluetoothEndpoint[] endpoints = new BluetoothEndpoint[0];
+        private DiscoveredDevice[] knownDevices = new DiscoveredDevice[0];
         public string LastError { get; private set; }
         public bool IsStopped { get { return stopping; } }
         public long RefreshVersion { get { return Interlocked.Read(ref refreshVersion); } }
@@ -79,9 +80,9 @@ namespace Aj139Battery
                 var match = endpoints.FirstOrDefault(e => e.Connected && !String.IsNullOrEmpty(e.Address) &&
                     (e.Id == id || (!String.IsNullOrEmpty(name) && !String.IsNullOrEmpty(e.Name) && e.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)));
                 if(match != null) return match.Address;
+                return knownDevices.Where(d => !String.IsNullOrEmpty(d.BluetoothAddress) &&
+                    !String.IsNullOrEmpty(name) && d.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0).Select(d => d.BluetoothAddress).FirstOrDefault();
             }
-            return WindowsDeviceDiscovery.Scan(true).Where(d => !String.IsNullOrEmpty(d.BluetoothAddress) &&
-                !String.IsNullOrEmpty(name) && d.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0).Select(d => d.BluetoothAddress).FirstOrDefault();
         }
         public long Version { get { lock (sync) return version; } }
         public DiscoveredDevice[] Snapshot() { lock (sync) return devices.ToArray(); }
@@ -97,13 +98,17 @@ namespace Aj139Battery
             {
                 try
                 {
-                    var found = WindowsDeviceDiscovery.Scan();
+                    var found = WindowsDeviceDiscovery.Scan(true);
                     lock (sync)
                     {
+                        string oldKnownKey = Fingerprint(knownDevices);
+                        knownDevices = found;
+                        string newKnownKey = Fingerprint(knownDevices);
+                        found = found.Where(d => !d.Specialized).ToArray();
                         found = MergeEndpoints(found, endpoints);
                         string oldKey = Fingerprint(devices), newKey = Fingerprint(found);
                         devices = found;
-                        if (oldKey != newKey) version++;
+                        if (oldKey != newKey || oldKnownKey != newKnownKey) version++;
                     }
                 }
                 catch (Exception error) { LastError = error.Message; }

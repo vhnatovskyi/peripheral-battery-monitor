@@ -29,11 +29,11 @@ Live validation confirmed an Xbox Wireless Headset over BLE, including a success
 
 ## Use
 
-Double-click the tray icon to open the dashboard. The combined icon shows up to four devices; its tooltip lists their battery levels and connection types. Separate mode gives every connected device its own icon. The dashboard shows device cards, connection status and the last battery-report time. **About** includes the app version, developer, contact email, LinkedIn and repository links. Closing the dashboard keeps monitoring active; choose **Exit** in the tray menu to stop the app.
+Double-click the tray icon to open the dashboard. Tray icons use horizontal battery symbols inspired by Windows 11. The combined icon shows up to four devices; its tooltip lists their battery levels and connection types. Separate mode gives every connected device its own icon. The dashboard shows device cards, connection status and the last battery-report time. **About** includes the app version, developer, contact email, LinkedIn and repository links. Closing the dashboard keeps monitoring active; choose **Exit** in the tray menu to stop the app.
 
 **Settings** groups language (Ukrainian/English), combined/separate tray mode, battery symbols or lowest percentage, notifications, Windows startup and release checking. The window uses a standard Windows toolbar. Startup is disabled by default. Settings are kept in your local Windows profile, independently of application versions.
 
-A Bluetooth card has a disconnect icon that requests Windows to disconnect that remote address while keeping its pairing. A driver may reject the request or reconnect automatically; the app offers Windows Bluetooth settings on failure. It does not disable the Bluetooth adapter or forget devices. USB/receiver cards disable this action.
+Bluetooth cards with a known target address show a centered unplug icon that requests Windows to disconnect that remote address while keeping its pairing. Unsupported/receiver cards hide this action. A driver may reject the request or reconnect automatically; the app offers Windows Bluetooth settings on failure. It does not disable the Bluetooth adapter or forget devices.
 
 The app queries each device at startup/reconnect or manual **Refresh batteries**, then listens for battery-change reports. It does not poll battery percentages every five minutes. Firmware controls notification timing; if a change is not reported, use Refresh. Zero percent is a valid value; missing data is displayed as unavailable rather than zero.
 

@@ -103,9 +103,7 @@ $window.StartPosition='CenterScreen';$window.FormBorderStyle='FixedSingle';$wind
 $window.AutoScroll=$false
 $availableHeight=[Windows.Forms.Screen]::PrimaryScreen.WorkingArea.Height-70
 if($window.Height -gt $availableHeight){$window.Height=[Math]::Max(480,$availableHeight)}
-$window.Controls.Add((New-Label 'Peripheral Battery Monitor' 24 42 504 32 17 $true))
-$subtitle=New-Label 'Your devices. One place for battery status.' 26 78 504 22 9
-$subtitle.ForeColor=$muted;$window.Controls.Add($subtitle)
+$window.Controls.Add((New-Label 'Devices' 24 47 230 30 13 $true))
 
 $toolbar=New-Object Windows.Forms.ToolStrip
 $toolbar.Dock='Top';$toolbar.GripStyle='Hidden';$toolbar.AutoSize=$true
@@ -121,16 +119,15 @@ $settingsButton=New-ToolButton 'Settings' 142
 $updateButton=New-ToolButton 'Updates' 104
 $aboutButton=New-ToolButton 'About' 128
 $window.Controls.Add($toolbar)
-$discoverySummary=New-Label 'Discovering connected devices...' 26 108 504 22 9
+$discoverySummary=New-Label '' 254 49 274 26 9
+$discoverySummary.TextAlign='MiddleRight'
 $discoverySummary.ForeColor=$muted;$window.Controls.Add($discoverySummary)
 $cardsPanel=New-Object Windows.Forms.Panel
-$cardsPanel.SetBounds(24,136,504,142);$cardsPanel.AutoScroll=$false
+$cardsPanel.SetBounds(24,87,504,142);$cardsPanel.AutoScroll=$false
 $window.Controls.Add($cardsPanel)
 $emptyState=New-Label 'No devices connected' 18 34 468 50 15 $true
 $emptyState.TextAlign='MiddleCenter';$emptyState.ForeColor=$muted;$cardsPanel.Controls.Add($emptyState)
 $script:deviceCards=@{};$script:cardOrder=@();$script:cardPage=0;$script:layoutKey=''
-$footer=New-Label "v$version  /  Peripheral Battery Monitor" 26 335 390 22 8
-$footer.ForeColor=$muted;$window.Controls.Add($footer)
 $previousPage=New-Button '<' 390 300 32;$nextPage=New-Button '>' 496 300 32
 $pageLabel=New-Label '' 428 306 62 22 9;$pageLabel.TextAlign='MiddleCenter'
 $window.Controls.AddRange(@($previousPage,$pageLabel,$nextPage))
@@ -144,9 +141,9 @@ function Update-CardLayout {
     if($script:layoutKey -eq $layoutKey){return};$script:layoutKey=$layoutKey
     $visibleCount=[Math]::Min($capacity,[Math]::Max(0,$script:cardOrder.Count-$script:cardPage*$capacity))
     $rows=[Math]::Max(1,[int][Math]::Ceiling($visibleCount/2.0))
-    $window.ClientSize=New-Object Drawing.Size(552,(172+$rows*142))
+    $navigationHeight=if($pages -gt 1){36}else{0}
+    $window.ClientSize=New-Object Drawing.Size(552,(99+$rows*142+$navigationHeight))
     $cardsPanel.Height=$rows*142
-    $footer.Top=$window.ClientSize.Height-30
     foreach($control in @($previousPage,$nextPage)){$control.Top=$window.ClientSize.Height-36;$control.Visible=($pages -gt 1)}
     $pageLabel.Top=$window.ClientSize.Height-30;$pageLabel.Visible=($pages -gt 1);$pageLabel.Text=('{0} / {1}' -f ($script:cardPage+1),$pages)
     $previousPage.Enabled=$script:cardPage -gt 0;$nextPage.Enabled=$script:cardPage -lt ($pages-1)
@@ -171,7 +168,8 @@ function New-DeviceCard($name,$transport,$accent){
 function Disconnect-Device($device){
     if($script:disconnectTask -and -not $script:disconnectTask.IsCompleted){return}
     if($device.Transport -notmatch 'Bluetooth'){return}
-    $address=$discovery.ResolveBluetoothAddress($device.Id,$device.Name)
+    $address=$device.Address
+    if(-not $address){$address=$discovery.ResolveBluetoothAddress($device.Id,$device.Name)}
     if(-not $address){Start-Process 'ms-settings:bluetooth';return}
     $message=(L 'Disconnect {0} from Windows? Pairing will be kept. The device may reconnect automatically.') -f $device.Name
     if([Windows.Forms.MessageBox]::Show($window,$message,(L 'Disconnect Bluetooth device'),'YesNo','Question') -ne 'Yes'){return}
@@ -182,10 +180,17 @@ function Sync-DeviceCards($devices){
     try{
         foreach($device in $devices){
             $active[$device.Id]=$true
-            if(-not $script:deviceCards.ContainsKey($device.Id)){$script:deviceCards[$device.Id]=New-DeviceCard $device.Name $device.Transport $device.Accent}
+            if(-not $script:deviceCards.ContainsKey($device.Id)){
+                $script:deviceCards[$device.Id]=New-DeviceCard $device.Name $device.Transport $device.Accent
+                $script:deviceCards[$device.Id].AddressVersion=-1
+            }
             $card=$script:deviceCards[$device.Id]
-            $card.View.DisconnectButton.Tag=$device
-            $card.View.SetDisconnectStatus(($device.Transport -match 'Bluetooth'),(L 'Disconnect'))
+            if($card.AddressVersion -ne $discovery.Version){
+                $card.Address=if(-not $SmokeTest -and $device.Transport -match 'Bluetooth'){$discovery.ResolveBluetoothAddress($device.Id,$device.Name)}else{$null}
+                $card.AddressVersion=$discovery.Version
+            }
+            $card.View.DisconnectButton.Tag=[pscustomobject]@{Id=$device.Id;Name=$device.Name;Transport=$device.Transport;Address=$card.Address}
+            $card.View.SetDisconnectStatus(($device.Transport -match 'Bluetooth' -and -not [string]::IsNullOrWhiteSpace($card.Address)),(L 'Disconnect'))
             $seen=if($device.Updated -gt [DateTime]::MinValue){((L 'Updated {0}') -f $device.Updated.ToLocalTime().ToString('HH:mm:ss'))}else{L 'Battery report unavailable'}
             $color=if($null -ne $device.Percent -and $device.Percent -le $settings.LowBatteryThreshold){[Drawing.Color]::OrangeRed}else{$device.Accent}
             $card.View.SetData($device.Name,(L $device.Transport),$device.Percent,(L $device.Status),$seen,$color)
@@ -292,32 +297,12 @@ $aboutButton.Add_Click({Show-About})
 $tray.Add_DoubleClick({Show-Window})
 
 function New-BatteryIcon($devices){
-    $bitmap=New-Object Drawing.Bitmap(32,32);$g=[Drawing.Graphics]::FromImage($bitmap);$g.SmoothingMode='AntiAlias'
-    $parts=@($devices | Select-Object -First 4)
-    if($settings.TrayStyle -eq 'Percent'){
-        $values=@($parts | Where-Object {$null -ne $_.Percent} | ForEach-Object Percent)
-        $text=if($values.Count){[string](($values | Measure-Object -Minimum).Minimum)}else{'?'}
-        $font=New-Object Drawing.Font('Segoe UI',16,[Drawing.FontStyle]::Bold,[Drawing.GraphicsUnit]::Pixel)
-        $format=New-Object Drawing.StringFormat;$format.Alignment='Center';$format.LineAlignment='Center'
-        $g.DrawString($text,$font,[Drawing.Brushes]::White,[Drawing.RectangleF]::new(0,0,32,32),$format)
-        $font.Dispose();$format.Dispose()
-        for($i=0;$i -lt $parts.Count;$i++){$pen=New-Object Drawing.Pen($parts[$i].Accent,2);try{$g.DrawArc($pen,1,1,29,29,[single](90+$i*90),[single]75)}finally{$pen.Dispose()}}
-    }else{
-        if(-not $parts.Count){$parts=@([pscustomobject]@{Percent=$null;Accent=$muted})}
-        for($i=0;$i -lt $parts.Count;$i++){
-            $item=$parts[$i];$single=$parts.Count -eq 1
-            $x=if($single){8}else{2+($i%2)*16};$y=if($single){5}else{2+[int][Math]::Floor($i/2)*16}
-            $w=if($single){16}else{12};$h=if($single){23}else{12}
-            $color=if($null -ne $item.Percent -and $item.Percent -le $settings.LowBatteryThreshold){[Drawing.Color]::OrangeRed}else{$item.Accent}
-            $pen=New-Object Drawing.Pen($color,1.5);$brush=New-Object Drawing.SolidBrush($color)
-            try{
-                $g.DrawRectangle($pen,$x,$y+2,$w,$h-2);$g.DrawLine($pen,$x+4,$y,$x+$w-4,$y)
-                if($null -ne $item.Percent -and $item.Percent -gt 0){$fill=[Math]::Max(1,[int](($h-6)*$item.Percent/100));$g.FillRectangle($brush,$x+2,$y+$h-2-$fill,$w-4,$fill)}
-            }finally{$pen.Dispose();$brush.Dispose()}
-        }
-    }
-    $handle=$bitmap.GetHicon();$temporary=[Drawing.Icon]::FromHandle($handle);$icon=$temporary.Clone();$temporary.Dispose();[PbmIcon]::DestroyIcon($handle) | Out-Null
-    $g.Dispose();$bitmap.Dispose();return $icon
+    $levels=[int[]]@(foreach($device in @($devices | Select-Object -First 4)){if($null -ne $device.Percent){[int]$device.Percent}else{-1}})
+    $bitmap=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render($levels,($settings.TrayStyle -eq 'Percent'),$settings.LowBatteryThreshold)
+    try{
+        $handle=$bitmap.GetHicon();$temporary=[Drawing.Icon]::FromHandle($handle)
+        try{return $temporary.Clone()}finally{$temporary.Dispose();[PbmIcon]::DestroyIcon($handle) | Out-Null}
+    }finally{$bitmap.Dispose()}
 }
 function Get-TrayTip($devices){
     $lines=@(foreach($device in @($devices | Select-Object -First 4)){
@@ -377,8 +362,7 @@ function Update-Views {
     if($key -ne $script:paintKey){Draw-Tray $visible;$script:paintKey=$key}
     $notificationIcon=if($tray.Visible){$tray}else{@($deviceTrays.Values)[0]}
     Sync-DeviceCards $visible
-    $discoverySummary.Text=(L '{0} devices connected  /  Live battery status') -f $visible.Count
-    if($discovery.LastError){$discoverySummary.Text+=' '+(L 'Some device information is unavailable.')}
+    $discoverySummary.Text=(L '{0} connected') -f $visible.Count
     foreach($device in $visible){
         if($null -eq $device.Percent){continue}
         if($device.Percent -gt ($settings.LowBatteryThreshold+5)){$alerted[$device.Id]=$false}
@@ -419,7 +403,9 @@ $timer.Add_Tick({
             Sync-DeviceCards $fixture
             if($deviceCards.Count -ne 2){throw 'Dynamic card creation failed'}
             if($toolbar.Dock -ne 'Top' -or $toolbar.RenderMode -ne 'System'){throw 'System toolbar initialization failed'}
-            if(-not $deviceCards['test-one'].View.DisconnectButton.Enabled -or $deviceCards['test-two'].View.DisconnectButton.Enabled){throw 'Disconnect action enabled for unsupported transport'}
+            if($deviceCards['test-one'].View.CanDisconnect -or $deviceCards['test-two'].View.CanDisconnect){throw 'Disconnect action shown without a real Bluetooth address'}
+            $deviceCards['test-one'].View.SetDisconnectStatus($true,(L 'Disconnect'))
+            if(-not $deviceCards['test-one'].View.CanDisconnect -or $deviceCards['test-one'].View.DisconnectButton.ImageAlign -ne 'MiddleCenter'){throw 'Supported disconnect icon initialization failed'}
             if($deviceCards['test-one'].View.DisconnectButton.AccessibleRole -ne 'PushButton'){throw 'Disconnect button is inaccessible'}
             $settingsDialog=Show-Settings -ForTest
             try{
@@ -449,10 +435,12 @@ $timer.Add_Tick({
 })
 try{
     Set-PbmControlLanguage $window $settings.Language;Set-PbmControlLanguage $menu $settings.Language
-    $mouse.Start();$keyboard.Start();$discovery.Start()
-    $bluetoothWorker=[PowerShell]::Create()
-    $bluetoothWorker.AddCommand((Join-Path $PSScriptRoot '../Devices/BluetoothWorker.ps1')).AddArgument($discovery) | Out-Null
-    $bluetoothAsync=$bluetoothWorker.BeginInvoke()
+    if(-not $SmokeTest){
+        $mouse.Start();$keyboard.Start();$discovery.Start()
+        $bluetoothWorker=[PowerShell]::Create()
+        $bluetoothWorker.AddCommand((Join-Path $PSScriptRoot '../Devices/BluetoothWorker.ps1')).AddArgument($discovery) | Out-Null
+        $bluetoothAsync=$bluetoothWorker.BeginInvoke()
+    }
     Update-Views;$timer.Start()
     if($ShowWindow){Show-Window}
     if($settings.CheckForUpdates){Start-UpdateCheck $true}

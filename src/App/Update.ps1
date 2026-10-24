@@ -3,7 +3,7 @@ param([switch]$Quiet,[switch]$CheckOnly,[ValidateSet('uk','en')][string]$Languag
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot 'Updates.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Localization.psm1') -Force
-function U([string]$text){Get-PbmText $text $Language}
+function Get-UpdateText([string]$text){Get-PbmText $text $Language}
 $packageRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
 $metadata=Get-Content -Raw -LiteralPath (Join-Path $packageRoot 'version.json') | ConvertFrom-Json
 $stateRoot=Join-Path $env:LOCALAPPDATA 'PeripheralBatteryMonitor'
@@ -21,7 +21,7 @@ try {
     else{
         $allReleases=Invoke-RestMethod -Uri "https://api.github.com/repos/$repo/releases?per_page=100" -Headers $headers -TimeoutSec 20
         $releases=@(Get-PbmCompatibleReleases $allReleases)
-        if(-not $releases.Count){throw (U 'No compatible releases found.')}
+        if(-not $releases.Count){throw (Get-UpdateText 'No compatible releases found.')}
         $release=$releases[0]
     }
     $latest=ConvertTo-PbmVersion $release.tag_name
@@ -34,8 +34,8 @@ try {
     $release=Show-PbmReleasePicker $releases $current $Language
     if(-not $release){exit}
     $latest=ConvertTo-PbmVersion $release.tag_name
-    $question=if($latest -lt $current){(U 'Rollback to {0}? Features from newer versions may be unavailable. The application will restart.') -f $latest}else{(U 'Install version {0}? The application will restart. Your settings will be kept.') -f $latest}
-    if([Windows.Forms.MessageBox]::Show($question,(U 'Releases and rollback'),'YesNo','Question') -ne 'Yes'){exit}
+    $question=if($latest -lt $current){(Get-UpdateText 'Rollback to {0}? Features from newer versions may be unavailable. The application will restart.') -f $latest}else{(Get-UpdateText 'Install version {0}? The application will restart. Your settings will be kept.') -f $latest}
+    if([Windows.Forms.MessageBox]::Show($question,(Get-UpdateText 'Releases and rollback'),'YesNo','Question') -ne 'Yes'){exit}
     $name="PeripheralBatteryMonitor-$latest-win-x64.zip"
     $asset=@($release.assets | Where-Object name -eq $name)
     $checksums=@($release.assets | Where-Object name -eq 'SHA256SUMS.txt')
@@ -58,13 +58,13 @@ try {
         $downloaded=Get-Content -Raw -LiteralPath (Join-Path $extracted 'version.json') | ConvertFrom-Json
         if((ConvertTo-PbmVersion $downloaded.version) -ne $latest -or $downloaded.repository -ne $repo){throw 'Package metadata differs from release.'}
         & (Join-Path $extracted 'installer/Install.ps1') -PackageRoot $extracted
-        [Windows.Forms.MessageBox]::Show(((U 'Installed version {0}.') -f $latest),'Peripheral Battery Monitor') | Out-Null
+        [Windows.Forms.MessageBox]::Show(((Get-UpdateText 'Installed version {0}.') -f $latest),'Peripheral Battery Monitor') | Out-Null
     }finally{
         $resolved=[IO.Path]::GetFullPath($temporary)
         $tempBase=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\PeripheralBatteryMonitor-update-'
         if($resolved.StartsWith($tempBase,[StringComparison]::OrdinalIgnoreCase)){Remove-Item -LiteralPath $resolved -Recurse -Force -ErrorAction SilentlyContinue}
     }
 }catch{
-    if(-not $Quiet){[Windows.Forms.MessageBox]::Show(((U 'Could not update. {0}') -f $_.Exception.Message),'Peripheral Battery Monitor','OK','Warning') | Out-Null}
+    if(-not $Quiet){[Windows.Forms.MessageBox]::Show(((Get-UpdateText 'Could not update. {0}') -f $_.Exception.Message),'Peripheral Battery Monitor','OK','Warning') | Out-Null}
     exit 1
 }
