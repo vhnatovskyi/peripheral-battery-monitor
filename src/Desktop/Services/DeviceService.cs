@@ -19,6 +19,7 @@ public sealed class DeviceService : IDisposable
     public IReadOnlyList<DeviceReading> Snapshot()
     {
         var readings=new List<DeviceReading>();
+        keyboard.SetConnection(windows.BluetoothConnected("magic-keyboard","Magic Keyboard"));
         var m=mouse.Snapshot();var k=keyboard.Snapshot();
         if(m.Online) readings.Add(new("aj139","AJ139 V2 MC","2.4 GHz",m.Percent,"#55DEAD","AJ139 HID",m.UpdatedUtc,null));
         if(k.Online && windows.BluetoothConnected("magic-keyboard","Magic Keyboard") != false) readings.Add(new("magic-keyboard","Magic Keyboard","Bluetooth",k.Percent,"#67BBFF","Apple HID",k.UpdatedUtc,windows.ResolveBluetoothAddress("magic-keyboard","Magic Keyboard")));

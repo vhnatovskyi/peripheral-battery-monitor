@@ -24,8 +24,13 @@ internal static class AgentSelfTest
         endpoint.Connected=false;windows.SetEndpoints([endpoint]);
         Assert(keyboard.Snapshot().Online,"Regression keeps the stale HID report pending");
         Assert(!service.Snapshot().Any(d=>d.Name=="Magic Keyboard"),"Bluetooth disconnect removes cached keyboard from all surfaces");
+        Assert(!keyboard.Snapshot().Online,"Disconnect clears stale HID charge");
+        typeof(Aj139Battery.MagicKeyboardMonitor).GetMethod("Process",flags)!.Invoke(keyboard,[new byte[]{0x90,0,77},3]);
+        Assert(!keyboard.Snapshot().Online,"Late report cannot resurrect disconnected keyboard");
         endpoint.Connected=true;windows.SetEndpoints([endpoint]);
-        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Reconnected keyboard returns");
+        Assert(!service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Reconnect awaits fresh charge instead of stale cache");
+        typeof(Aj139Battery.MagicKeyboardMonitor).GetMethod("Process",flags)!.Invoke(keyboard,[new byte[]{0x90,0,76},3]);
+        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard" && d.Percent==76),"Reconnected keyboard returns with fresh charge");
         var classic=new Aj139Battery.BluetoothEndpoint {Id=endpoint.Id,Name=endpoint.Name,Connected=false};
         windows.SetEndpoints([classic,endpoint]);
         Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Inactive Classic endpoint does not hide active BLE keyboard");

@@ -32,6 +32,20 @@ namespace Aj139Battery
         private long version;
         private string status = "Waiting for Magic Keyboard";
         private DateTime updatedUtc;
+        private bool? connected;
+        private long generation;
+
+        public void SetConnection(bool? value)
+        {
+            if (!value.HasValue) return;
+            lock (sync)
+            {
+                if (connected == value) return;
+                connected = value;
+                generation++;
+                if (value == false) Unavailable();
+            }
+        }
 
         public BatteryState Snapshot()
         {
@@ -45,6 +59,7 @@ namespace Aj139Battery
             if (!MagicKeyboardProtocol.TryBattery(report, length, out value)) return;
             lock (sync)
             {
+                if (connected == false) return;
                 if (percent != value) version++;
                 percent = value; status = "Connected"; updatedUtc = DateTime.UtcNow;
             }
@@ -71,16 +86,23 @@ namespace Aj139Battery
         {
             try
             {
-                await queryGate.WaitAsync(stop.Token).ConfigureAwait(false);
+                if (!await queryGate.WaitAsync(0, stop.Token).ConfigureAwait(false)) return;
                 try
                 {
+                    long requestGeneration;
+                    lock (sync) { if (connected == false) return; requestGeneration = generation; }
                     var path = Native.FindMagicKeyboard();
                     if (path == null) { Unavailable(); return; }
                     using (var handle = Native.OpenQuery(path))
                     {
                         var report = new byte[3]; report[0] = 0x90;
-                        if (!handle.IsInvalid && HidD_GetInputReport(handle, report, report.Length)) Process(report, report.Length);
-                        else Unavailable();
+                        bool success = !handle.IsInvalid && HidD_GetInputReport(handle, report, report.Length);
+                        lock (sync)
+                        {
+                            if (generation != requestGeneration) return;
+                            if (success) Process(report, report.Length);
+                            else Unavailable();
+                        }
                     }
                 }
                 finally { queryGate.Release(); }
@@ -96,23 +118,48 @@ namespace Aj139Battery
                 {
                     try
                     {
+                        long sessionGeneration;
+                        lock (sync) sessionGeneration = generation;
                         var path = Native.FindMagicKeyboard();
-                        if (path == null) Unavailable();
+                        bool disconnected;
+                        lock (sync) disconnected = connected == false;
+                        if (path == null || disconnected) Unavailable();
                         else using (var handle = Native.Open(path))
                         {
                             if (handle.IsInvalid) throw new IOException("Keyboard unavailable");
                             using (var input = new FileStream(handle, FileAccess.ReadWrite, 3, true))
+                            using (var session = CancellationTokenSource.CreateLinkedTokenSource(stop.Token))
                             {
                                 // This is a battery-only vendor collection, not the key input collection.
                                 var report = new byte[3];
-                                var read = input.ReadAsync(report, 0, report.Length, stop.Token);
+                                var read = input.ReadAsync(report, 0, report.Length, session.Token);
+                                try
+                                {
                                 await ReadCurrentAsync().ConfigureAwait(false);
                                 while (!stop.IsCancellationRequested)
                                 {
+                                    await Task.WhenAny(read, Task.Delay(3000, session.Token)).ConfigureAwait(false);
+                                    lock (sync) disconnected = connected == false || generation != sessionGeneration;
+                                    if (disconnected) break;
+                                    if (!read.IsCompleted)
+                                    {
+                                        // Reconnection may precede the HID collection becoming ready.
+                                        // Retry only until an initial battery report is available.
+                                        if (!Snapshot().Online) await ReadCurrentAsync().ConfigureAwait(false);
+                                        continue;
+                                    }
                                     int count = await read.ConfigureAwait(false);
                                     if (count == 0) throw new IOException("Keyboard disconnected");
-                                    Process(report, count);
-                                    read = input.ReadAsync(report, 0, report.Length, stop.Token);
+                                    lock (sync) { if (generation == sessionGeneration) Process(report, count); }
+                                    read = input.ReadAsync(report, 0, report.Length, session.Token);
+                                }
+                                }
+                                finally
+                                {
+                                    session.Cancel();
+                                    try { read.GetAwaiter().GetResult(); }
+                                    catch (OperationCanceledException) { }
+                                    catch (IOException) { }
                                 }
                             }
                         }

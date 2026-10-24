@@ -1,3 +1,8 @@
+## v0.6.3
+
+- Restart the keyboard HID subscription after Bluetooth connection changes, including when the old read remains pending. Clear the disconnected charge and reject reports from the previous connection.
+- Retry the initial battery query while a reconnected HID collection is not yet ready. Resume passive reports once a valid percentage arrives, and coalesce concurrent refresh requests.
+
 ## v0.6.2
 
 - Hide a disconnected Magic Keyboard from the widget, tray and dashboard even when its HID battery read remains pending and retains the last percentage. Use the Windows Bluetooth connection state independently of the cached charge.
