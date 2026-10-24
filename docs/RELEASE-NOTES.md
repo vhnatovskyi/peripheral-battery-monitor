@@ -1,3 +1,8 @@
+## v0.6.2
+
+- Hide a disconnected Magic Keyboard from the widget, tray and dashboard even when its HID battery read remains pending and retains the last percentage. Use the Windows Bluetooth connection state independently of the cached charge.
+- Preserve connected dual-mode devices when only one Bluetooth endpoint disconnects. Add a regression test covering cached battery data, disconnection and reconnection.
+
 ## v0.6.1
 
 - Explicitly restore the enabled widget's visibility and topmost position after the MAUI window has actually closed. Keep dragging locked and clicks passing through. A disabled widget remains disabled.

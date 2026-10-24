@@ -93,6 +93,26 @@ namespace Aj139Battery
                     !String.IsNullOrEmpty(name) && d.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0).Select(d => d.BluetoothAddress).FirstOrDefault();
             }
         }
+        public bool? BluetoothConnected(string id, string name)
+        {
+            lock (sync)
+            {
+                var known = knownDevices.Where(d => MatchesDevice(d.Id, d.Name, id, name)).ToArray();
+                var matches = endpoints.Where(e => MatchesDevice(e.Id, e.Name, id, name) ||
+                    known.Any(d => String.Equals(d.Id, e.Id, StringComparison.OrdinalIgnoreCase))).ToArray();
+                // A cached HID percentage is not evidence of a live Bluetooth link.
+                // Classic and BLE endpoints can describe the same physical device.
+                if (matches.Length > 0) return matches.Any(e => e.Connected);
+                var confirmed = known.Where(d => d.Connected.HasValue).ToArray();
+                return confirmed.Length > 0 ? (bool?)confirmed.Any(d => d.Connected == true) : null;
+            }
+        }
+        private static bool MatchesDevice(string candidateId, string candidateName, string id, string name)
+        {
+            return String.Equals(candidateId, id, StringComparison.OrdinalIgnoreCase) ||
+                (!String.IsNullOrEmpty(name) && !String.IsNullOrEmpty(candidateName) &&
+                    candidateName.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
         public long Version { get { lock (sync) return version; } }
         public DiscoveredDevice[] Snapshot() { lock (sync) return devices.ToArray(); }
         public void Start()

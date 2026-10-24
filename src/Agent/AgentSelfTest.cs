@@ -11,11 +11,31 @@ namespace PeripheralBatteryMonitor.Agent;
 internal static class AgentSelfTest
 {
     internal static int ExitCode=1;
+    private static void TestKeyboardDisconnect()
+    {
+        using var service=new DeviceService();
+        const System.Reflection.BindingFlags flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+        var keyboard=(Aj139Battery.MagicKeyboardMonitor)typeof(DeviceService).GetField("keyboard",flags)!.GetValue(service)!;
+        var windows=(Aj139Battery.WindowsDeviceMonitor)typeof(DeviceService).GetField("windows",flags)!.GetValue(service)!;
+        typeof(Aj139Battery.MagicKeyboardMonitor).GetMethod("Process",flags)!.Invoke(keyboard,[new byte[]{0x90,0,77},3]);
+        var endpoint=new Aj139Battery.BluetoothEndpoint {Id="keyboard-container",Name="Magic Keyboard",Connected=true};
+        windows.SetEndpoints([endpoint]);
+        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard" && d.Percent==77),"Connected keyboard has HID charge");
+        endpoint.Connected=false;windows.SetEndpoints([endpoint]);
+        Assert(keyboard.Snapshot().Online,"Regression keeps the stale HID report pending");
+        Assert(!service.Snapshot().Any(d=>d.Name=="Magic Keyboard"),"Bluetooth disconnect removes cached keyboard from all surfaces");
+        endpoint.Connected=true;windows.SetEndpoints([endpoint]);
+        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Reconnected keyboard returns");
+        var classic=new Aj139Battery.BluetoothEndpoint {Id=endpoint.Id,Name=endpoint.Name,Connected=false};
+        windows.SetEndpoints([classic,endpoint]);
+        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Inactive Classic endpoint does not hide active BLE keyboard");
+    }
     internal static async Task RunAsync(AgentHost host)
     {
         string result=Path.Combine(SettingsStore.StateRoot,"agent-result.txt");
         try
         {
+            TestKeyboardDisconnect();
             var first=await host.RequestForTest(new());
             Assert(first.Success && first.Snapshot?.Devices.Length==3,"Initial snapshot");
             Assert(first.Snapshot!.Devices[0].Percent==90,"Battery percentage");
