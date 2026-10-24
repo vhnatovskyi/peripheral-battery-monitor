@@ -10,15 +10,20 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Install MAUI Windows build tools
+        run: dotnet workload install maui-windows --skip-manifest-update
       - name: Validate scripts and protocol parsers
         shell: powershell
         run: ./scripts/Test.ps1
       - name: Build installer and portable package
         shell: powershell
-        run: ./scripts/Build.ps1
+        run: ./scripts/Build-Maui.ps1 -OutputDirectory dist
       - name: Test installation and upgrade
         shell: powershell
-        run: ./tests/Test-Installer.ps1 -PackageZip (Get-ChildItem dist/*win-x64.zip).FullName
+        run: ./tests/Test-MauiPackage.ps1 -OutputDirectory dist
       - uses: actions/upload-artifact@v4
         with:
           name: windows-package

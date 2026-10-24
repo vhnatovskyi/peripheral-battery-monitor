@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$PackageRoot,
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\PeripheralBatteryMonitor'),
@@ -13,8 +13,14 @@ if ((Split-Path $install -Leaf) -ne 'PeripheralBatteryMonitor') { throw 'Install
 $metadata = Get-Content -Raw -LiteralPath (Join-Path $package 'version.json') | ConvertFrom-Json
 $version = [string]$metadata.version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid package version.' }
+if($metadata.PSObject.Properties['interface'] -and $metadata.interface -eq 'maui' -and -not(Test-Path -LiteralPath (Join-Path $package 'app/PeripheralBatteryMonitor.Desktop.exe') -PathType Leaf)){throw 'Native MAUI application files are missing.'}
 foreach ($required in @('PeripheralBatteryMonitor.exe','src\App\Tray.ps1','installer\Uninstall.ps1')) {
     if (-not (Test-Path -LiteralPath (Join-Path $package $required) -PathType Leaf)) { throw "Package missing $required" }
+}
+if((Test-Path -LiteralPath (Join-Path $package 'app/PeripheralBatteryMonitor.Desktop.exe')) -and -not ($NoIntegration -and $NoLaunch)){
+    Import-Module (Join-Path $package 'installer/Runtime.psm1') -Force
+    $dotnetRoot=Initialize-PbmRuntime
+    $env:DOTNET_ROOT_X64=$dotnetRoot;$env:DOTNET_ROOT=$dotnetRoot
 }
 New-Item -ItemType Directory -Path (Join-Path $install 'versions') -Force | Out-Null
 $destination = [IO.Path]::GetFullPath((Join-Path $install "versions\$version"))

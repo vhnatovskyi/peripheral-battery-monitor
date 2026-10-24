@@ -1,0 +1,15 @@
+﻿<?xml version = "1.0" encoding = "UTF-8" ?>
+<Application xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:PeripheralBatteryMonitor.Desktop"
+             x:Class="PeripheralBatteryMonitor.Desktop.App">
+    <Application.Resources>
+        <ResourceDictionary>
+            <Style TargetType="ContentPage" ApplyToDerivedTypes="True"><Setter Property="BackgroundColor" Value="#101820" /></Style>
+            <Style TargetType="Label"><Setter Property="TextColor" Value="#F5F7FA" /><Setter Property="FontSize" Value="14" /></Style>
+            <Style TargetType="Button"><Setter Property="BackgroundColor" Value="#26374B" /><Setter Property="TextColor" Value="White" /><Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="16,10" /><Setter Property="FontSize" Value="14" /></Style>
+            <Style TargetType="Picker"><Setter Property="TextColor" Value="White" /><Setter Property="TitleColor" Value="#95A3B8" /><Setter Property="BackgroundColor" Value="#26374B" /></Style>
+            <Style TargetType="Switch"><Setter Property="OnColor" Value="#55DEAD" /><Setter Property="ThumbColor" Value="White" /></Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

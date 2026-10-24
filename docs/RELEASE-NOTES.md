@@ -1,3 +1,15 @@
+## v0.5.0 — Native MAUI desktop application
+
+- Replace the PowerShell/WinForms dashboard with a native .NET MAUI Windows interface, including adaptive device cards and dedicated Settings, Updates and About pages.
+- Preserve AJ139 receiver, Magic Keyboard and Windows device providers; read Bluetooth Battery Service data and notifications directly in the application process.
+- Keep device colors, separate or segmented combined tray icons, four-device tooltips, low battery alerts and per-user startup settings.
+- Disconnect supported Bluetooth devices directly from their card while retaining pairing.
+- Select newer or older releases, verify SHA-256 checksums and install or roll back from the Updates page.
+- Include a custom application icon, Ukrainian and English, and developer contact links.
+- Use a compact package with shared .NET 10 and Windows App Runtime 1.8 components. Setup and portable startup detect missing components and offer a one-time Microsoft download. Subsequent app updates reuse them.
+
+Download **PeripheralBatteryMonitor-Setup-0.5.0.exe** or the **win-x64.zip** asset. This is the separate MAUI release; settings from 0.4.x are retained. The compact app package is about 18 MiB; runtime downloads, if required, are additional.
+
 ## v0.4.6
 
 - Draw charge digits directly on the native notification icon pixel grid, avoiding clipped or rescaled font glyphs. Preserve device colors and the segmented combined ring.

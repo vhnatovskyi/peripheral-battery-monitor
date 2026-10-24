@@ -6,5 +6,6 @@
 .vs/
 work/
 dist/
+dist-maui/
 bin/
 obj/

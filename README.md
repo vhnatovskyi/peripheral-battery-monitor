@@ -1,14 +1,14 @@
 # Peripheral Battery Monitor
 
-A lightweight Windows app for wireless-device battery status. A compact device dashboard, combined or separate tray icons, local settings, and releases from GitHub. No vendor application or third-party device driver is required.
+A Windows app built with **.NET MAUI** for wireless-device battery status. Native device cards, combined or separate tray indicators, local settings, and verified releases from GitHub. No vendor application or third-party device driver is required.
 
 ## Install
 
 Download the **Setup EXE** from [the latest release](https://github.com/vhnatovskyi/peripheral-battery-monitor/releases/latest) and run it. Installation is per-user and does not require administrator rights. You can uninstall it through Windows **Installed apps**.
 
-For portable use, download and extract the `win-x64.zip` release asset and run **PeripheralBatteryMonitor.exe**. Keep the extracted files together. Binaries are unsigned, so Windows may show an unknown-publisher notice.
+For portable use, download and extract the **`win-x64.zip`** release asset and run **PeripheralBatteryMonitor.exe**. Keep the extracted files together. Binaries are unsigned, so Windows may show an unknown-publisher notice.
 
-Requires Windows 10/11 x64 with Windows PowerShell 5.1 and the built-in .NET Framework. No separate runtime download is needed. A background HID listener runs while the app is open.
+Requires Windows 10 (build 19041+) or Windows 11 x64. The compact package uses shared **.NET 10 Runtime x64** and **Windows App Runtime 1.8 x64**. Setup and the portable launcher detect these components and offer to install missing ones once, directly from Microsoft. Existing components are reused. The .NET fallback is installed per user. Windows PowerShell 5.1 and the built-in .NET Framework support the compatibility launcher and installer; device monitoring runs in the native application process.
 
 ## Supported devices
 

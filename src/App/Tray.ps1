@@ -2,6 +2,20 @@
 [CmdletBinding()]
 param([switch]$ShowWindow,[switch]$SmokeTest)
 $ErrorActionPreference='Stop'
+if(-not $SmokeTest){
+    $entryRoot=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
+}
+$desktop=Join-Path $PSScriptRoot '../../app/PeripheralBatteryMonitor.Desktop.exe'
+if((-not $SmokeTest) -and (Test-Path -LiteralPath $desktop)){
+    Import-Module (Join-Path $entryRoot 'installer/Runtime.psm1') -Force
+    $dotnetRoot=Initialize-PbmRuntime
+    $env:DOTNET_ROOT_X64=$dotnetRoot
+    $env:DOTNET_ROOT=$dotnetRoot
+    $start=@{FilePath=[IO.Path]::GetFullPath($desktop);WorkingDirectory=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($desktop));WindowStyle='Hidden'}
+    if(-not $ShowWindow){$start.ArgumentList='--background'}
+    Start-Process @start
+    exit
+}
 Add-Type -Path @(Get-ChildItem (Join-Path $PSScriptRoot '../Core/*.cs'),(Join-Path $PSScriptRoot '../Devices/*.cs') | ForEach-Object FullName)
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing

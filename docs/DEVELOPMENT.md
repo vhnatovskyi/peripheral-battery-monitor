@@ -1,16 +1,18 @@
 # Development
 
-Requires Windows PowerShell 5.1 and Windows' .NET Framework compiler; no SDK/package installation is needed.
+Requires Windows, .NET SDK 10, the `maui-windows` workload and Windows PowerShell 5.1 for installer compatibility tests.
 
 ```powershell
 ./scripts/Test.ps1
-./scripts/Build.ps1
-./Start.cmd
+dotnet workload install maui-windows
+dotnet build ./src/Desktop/PeripheralBatteryMonitor.Desktop.csproj
+./scripts/Build-Maui.ps1
+./tests/Test-MauiPackage.ps1 -OutputDirectory dist-maui
 ```
 
 ## Layout
 
-`src/Core` contains shared device-state snapshots and Windows HID discovery. `src/Devices` contains isolated device providers and packet parsers. `src/App` contains the tray UI, settings and updater. `src/Launcher` contains the native Windows entry point. `installer` contains setup, per-user installation and uninstall logic. `tests` covers packet handling and release validation. `scripts` contains validation/build commands. `docs` contains protocol details and release notes. `.github/workflows` validates main/PRs and publishes tagged releases.
+`src/Desktop` is the MAUI application: Views contains native pages, Services handles device state/settings/releases, and Platforms/Windows contains native notification icons. `src/Core` and `src/Devices` hold shared device providers and packet parsers. `src/UI/TrayBatteryPainter.cs` draws notification icons at their native pixel size. `src/App` retains the 0.4.x interface and the compatibility entry script, which starts the MAUI executable in a complete package. `src/Launcher` is the small .NET Framework compatibility launcher. `installer` handles per-user setup, upgrade and rollback. `assets/branding` holds the original application icon. `.github/workflows` validates and publishes tagged releases.
 
 ## New providers
 
@@ -21,7 +23,11 @@ Implement Start, Snapshot, Refresh and Dispose. Keep I/O in a background worker,
 1. Update `version.json` using a three-part numeric version.
 2. Update `docs/RELEASE-NOTES.md` and run Test/Build.
 3. Commit and push main, then create and push the matching `vX.Y.Z` tag.
-4. The Release workflow validates, builds a portable ZIP and self-contained setup EXE, generates SHA256SUMS.txt, and publishes all three assets.
+4. The Release workflow validates and publishes the compact portable ZIP, setup EXE and SHA256SUMS.txt. Package checks retain the legacy updater's 20 MiB download and 100 MiB extracted limits.
+
+Publishing uses shared .NET 10 and Windows App Runtime 1.8, JSON source generation, no ReadyToRun duplication, and English/Ukrainian managed satellite resources. The installer detects prerequisites before changing the active version. Missing components are downloaded once from Microsoft: the .NET runtime ZIP is SHA-512 verified and the Windows App Runtime installer must have a valid Microsoft Authenticode signature. The .NET fallback is shared per user across application versions. Windows App SDK 1.8.260921001 requires Windows App Runtime 8000.994.2142.0 or later in the 1.8 family.
+
+For native UI verification, set `PBM_UI_SMOKE_ROOT` to an absolute scratch folder and launch the built desktop EXE with `--ui-smoke`. It renders each native page with clearly synthetic test readings, writes PNGs and a result file, and exits. This mode never starts device I/O or modifies settings. These readings must never be presented as a live hardware test.
 
 Application settings are stored in ``%LOCALAPPDATA%\PeripheralBatteryMonitor\settings.json``. Release-check results use ``release.json`` in the same directory. Neither file contains access tokens. Default settings disable sign-in startup, enable low-battery warnings at 20%, and allow one GitHub release check per day at startup.
 
