@@ -19,7 +19,11 @@ function Test-PbmArchive([string]$Path, [string]$Destination) {
 function Assert-PbmChecksum([string]$Path,[string]$Manifest,[string]$Name) {
     $match=[regex]::Match($Manifest,'(?m)^([A-Fa-f0-9]{64})\s+\*?'+[regex]::Escape($Name)+'\s*$')
     if(-not $match.Success){throw 'Checksum missing from release.'}
-    if((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ne $match.Groups[1].Value){throw 'Release checksum mismatch.'}
+    $sha=[Security.Cryptography.SHA256]::Create()
+    $stream=[IO.File]::OpenRead([IO.Path]::GetFullPath($Path))
+    try{$actual=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','')}
+    finally{$stream.Dispose();$sha.Dispose()}
+    if(-not $actual.Equals($match.Groups[1].Value,[StringComparison]::OrdinalIgnoreCase)){throw 'Release checksum mismatch.'}
 }
 function Get-PbmCompatibleReleases($Releases){
     $valid=@(foreach($release in $Releases){

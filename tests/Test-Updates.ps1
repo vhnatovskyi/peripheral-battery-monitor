@@ -20,6 +20,8 @@ try{
     $file=Join-Path $temporary 'payload.txt';Set-Content -LiteralPath $file -Value 'release test'
     $hash=(Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash
     Assert-PbmChecksum $file "$hash  payload.txt" 'payload.txt'
+    function global:Get-FileHash { throw 'Get-FileHash is unavailable in this host' }
+    try{Assert-PbmChecksum $file "$hash  payload.txt" 'payload.txt'}finally{Remove-Item Function:\Get-FileHash}
     $rejected=$false;try{Assert-PbmChecksum $file (('0'*64)+'  payload.txt') 'payload.txt'}catch{$rejected=$true}
     Assert $rejected 'Checksum mismatch accepted'
     Add-Type -AssemblyName System.IO.Compression,System.IO.Compression.FileSystem

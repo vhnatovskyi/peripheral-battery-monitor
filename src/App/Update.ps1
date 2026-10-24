@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param([switch]$Quiet,[switch]$CheckOnly,[ValidateSet('uk','en')][string]$Language='uk')
 $ErrorActionPreference='Stop'
+$windowsModules=Join-Path $PSHOME 'Modules'
+if(Test-Path -LiteralPath $windowsModules){$env:PSModulePath=$windowsModules+[IO.Path]::PathSeparator+$env:PSModulePath}
 Import-Module (Join-Path $PSScriptRoot 'Updates.psm1') -Force
 Import-Module (Join-Path $PSScriptRoot 'Localization.psm1') -Force
 function Get-UpdateText([string]$text){Get-PbmText $text $Language}
@@ -54,7 +56,7 @@ try {
         Assert-PbmChecksum $zip $manifest $name
         $extracted=Join-Path $temporary 'package'
         Test-PbmArchive $zip $extracted
-        Expand-Archive -LiteralPath $zip -DestinationPath $extracted
+        [IO.Compression.ZipFile]::ExtractToDirectory($zip,$extracted)
         $downloaded=Get-Content -Raw -LiteralPath (Join-Path $extracted 'version.json') | ConvertFrom-Json
         if((ConvertTo-PbmVersion $downloaded.version) -ne $latest -or $downloaded.repository -ne $repo){throw 'Package metadata differs from release.'}
         & (Join-Path $extracted 'installer/Install.ps1') -PackageRoot $extracted
