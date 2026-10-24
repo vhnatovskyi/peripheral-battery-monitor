@@ -1,9 +1,8 @@
-## v0.4.2
+## v0.4.3
 
-- Restore each device's accent color in the tray: green for AJ139, blue for Magic Keyboard and the provider accent for other devices.
-- In separate-icon mode, show a colored horizontal battery with that device's percentage underneath, including the percent sign.
-- In combined mode, show a circle divided into up to four device-colored sections. Each section reflects its device's battery level; the caption below shows the lowest known percentage.
-- Keep the four-device tooltip and both tray modes. Both appearance options retain the symbol and percentage; the emphasis option enlarges the caption.
-- Add rendering regression checks for accent colors, combined sections and a percentage caption below the symbol.
+- Give the combined indicator the entire icon area: a large device-colored sectioned circle with a high-contrast charge number in its center.
+- Remove the miniature bottom caption from combined mode; the tooltip keeps the percent sign and per-device values.
+- Preserve colored horizontal batteries and percentages underneath in separate mode.
+- Extend rendering checks to validate the centered combined caption and device accents.
 
-Download **PeripheralBatteryMonitor-Setup-0.4.2.exe**, or choose the release through Updates. Existing settings are preserved.
+Download **PeripheralBatteryMonitor-Setup-0.4.3.exe**, or update from within the application. The MAUI redesign is being prepared as a separate release.
