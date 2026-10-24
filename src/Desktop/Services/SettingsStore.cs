@@ -22,17 +22,22 @@ public sealed class SettingsStore
 {
     public static readonly string StateRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PeripheralBatteryMonitor");
     public static string PackageRoot => Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar))!.FullName;
+    public static string? InstalledRoot
+    {
+        get => ResolveInstalledRoot(PackageRoot);
+    }
+    internal static string? ResolveInstalledRoot(string packageRoot)
+    { var package=new DirectoryInfo(packageRoot);return package.Parent?.Name=="versions"?package.Parent.Parent!.FullName:null; }
     public static string LauncherPath
     {
         get
         {
-            var package = new DirectoryInfo(PackageRoot);
-            var root = package.Parent?.Name == "versions" ? package.Parent.Parent!.FullName : package.FullName;
+            var root = InstalledRoot ?? PackageRoot;
             return Path.Combine(root, "PeripheralBatteryMonitor.exe");
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.7";
+    public string Version { get; } = "0.5.8";
     public SettingsStore()
     {
         try { Value = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(StateRoot,"settings.json")),AppJsonContext.Default.MonitorSettings) ?? new(); }

@@ -1,15 +1,17 @@
 ﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$PackageRoot,
-    [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\PeripheralBatteryMonitor'),
+    [string]$InstallRoot,
     [switch]$Interactive,
     [switch]$NoLaunch,
     [switch]$NoIntegration
 )
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'Load-InstallPaths.ps1')
 $package = (Resolve-Path -LiteralPath $PackageRoot).Path
-$install = [IO.Path]::GetFullPath($InstallRoot).TrimEnd('\')
-if ((Split-Path $install -Leaf) -ne 'PeripheralBatteryMonitor') { throw 'Installation folder must be named PeripheralBatteryMonitor.' }
+if(-not $InstallRoot){$InstallRoot=[PeripheralBatteryMonitor.Installation.InstallPaths]::PreferredRoot()}
+$install = [PeripheralBatteryMonitor.Installation.InstallPaths]::ValidateDestination($InstallRoot)
+if($package.StartsWith($install+'\',[StringComparison]::OrdinalIgnoreCase) -or $install.StartsWith($package+'\',[StringComparison]::OrdinalIgnoreCase) -or $package -eq $install){throw 'The package and installation folders must not overlap.'}
 $metadata = Get-Content -Raw -LiteralPath (Join-Path $package 'version.json') | ConvertFrom-Json
 $version = [string]$metadata.version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid package version.' }
@@ -33,8 +35,8 @@ if (-not (Test-Path -LiteralPath $destination)) {
     Move-Item -LiteralPath $staging -Destination $destination
 }
 # Ask the existing application to close cleanly; never kill unrelated PowerShell processes.
-$defaultInstall=[IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\PeripheralBatteryMonitor')).TrimEnd('\')
-$isolatedTest=$NoIntegration -and $NoLaunch -and ($install -ne $defaultInstall)
+$activeInstall=[PeripheralBatteryMonitor.Installation.InstallPaths]::PreferredRoot()
+$isolatedTest=$NoIntegration -and $NoLaunch -and ($install -ne $activeInstall)
 if(-not $isolatedTest){try { $exitEvent=[Threading.EventWaitHandle]::OpenExisting('Local\PeripheralBatteryMonitor.Exit'); $exitEvent.Set() | Out-Null; $exitEvent.Dispose() } catch [Threading.WaitHandleCannotBeOpenedException] { }}
 $mutexName=if($isolatedTest){'Local\PeripheralBatteryMonitor.Test.'+[Guid]::NewGuid().ToString('N')}else{'Local\AJ139BatteryIndicator'}
 $instanceMutex = New-Object Threading.Mutex($false, $mutexName)
@@ -73,6 +75,9 @@ if (-not $NoIntegration) {
     foreach ($key in $properties.Keys) { New-ItemProperty -Path $uninstall -Name $key -Value $properties[$key] -PropertyType String -Force | Out-Null }
     New-ItemProperty -Path $uninstall -Name NoModify -Value 1 -PropertyType DWord -Force | Out-Null
     New-ItemProperty -Path $uninstall -Name NoRepair -Value 1 -PropertyType DWord -Force | Out-Null
+    $run='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+    $startup=Get-ItemProperty -Path $run -Name PeripheralBatteryMonitor -ErrorAction SilentlyContinue
+    if($startup -and $startup.PeripheralBatteryMonitor){Set-ItemProperty -Path $run -Name PeripheralBatteryMonitor -Value ('"'+$launcher+'" --background')}
 }
 if (-not $NoLaunch) { Start-Process -FilePath $launcher }
 if ($Interactive) { Add-Type -AssemblyName System.Windows.Forms; [Windows.Forms.MessageBox]::Show("Peripheral Battery Monitor $version is installed. Look for its battery icon near the clock.", 'Installation complete') | Out-Null }

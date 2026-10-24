@@ -1,11 +1,11 @@
-param([Parameter(Mandatory=$true)][string]$PackageZip)
+﻿param([Parameter(Mandatory=$true)][string]$PackageZip)
 $ErrorActionPreference='Stop'
 $temporary=Join-Path ([IO.Path]::GetTempPath()) ('PbmInstallTests-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $temporary | Out-Null
 try{
     $package=Join-Path $temporary 'package'
     Expand-Archive -LiteralPath $PackageZip -DestinationPath $package
-    $root=Join-Path $temporary 'PeripheralBatteryMonitor'
+    $root=Join-Path $temporary 'Custom apps\Заряд пристроїв'
     & (Join-Path $package 'installer/Install.ps1') -PackageRoot $package -InstallRoot $root -NoLaunch -NoIntegration
     $version=(Get-Content -Raw (Join-Path $package 'version.json') | ConvertFrom-Json).version
     if((Get-Content -Raw (Join-Path $root 'current.txt')).Trim() -ne $version){throw 'Initial version pointer incorrect'}

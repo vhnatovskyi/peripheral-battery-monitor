@@ -1,3 +1,11 @@
+## v0.5.8
+
+- Ask where to install the application before extracting or installing it. Include an editable destination, Browse, Cancel and installation progress, with Ukrainian and English labels.
+- Prefill an existing installation folder for reinstallations and retain the selected location for updates, shortcuts, enabled startup and uninstall.
+- Accept custom folder names, spaces and Ukrainian characters. Reject drive roots, unrelated nonempty directories, nested installations and directory links.
+- Validate ownership and registration before uninstalling a custom location. Keep settings in the existing user profile.
+- Releases before v0.5.8 do not support custom installation folders; rollback to those releases is blocked when using a custom location.
+
 ## v0.5.7
 
 - Smooth widget text and charge numbers with four-times-density text rendering and alpha-safe reduction to the actual screen pixel size.

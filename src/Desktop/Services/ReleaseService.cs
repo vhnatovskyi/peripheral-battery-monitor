@@ -35,6 +35,10 @@ public sealed class ReleaseService
     }
     public async Task InstallAsync(ReleaseInfo release,IProgress<double> progress,CancellationToken token=default)
     {
+        string? installedRoot=SettingsStore.InstalledRoot;
+        string defaultRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"Programs","PeripheralBatteryMonitor");
+        if(installedRoot!=null && !Path.GetFullPath(installedRoot).Equals(defaultRoot,StringComparison.OrdinalIgnoreCase) && release.Version<new Version(0,5,8))
+            throw new InvalidOperationException(AppRuntime.Current.Text("Релізи до 0.5.8 не підтримують встановлення у вибрану папку. Оберіть версію 0.5.8 або новішу.","Releases before 0.5.8 do not support custom installation folders. Choose version 0.5.8 or newer."));
         string portable=$"PeripheralBatteryMonitor-{release.Version}-portable-win-x64.zip";
         string name=release.Assets.Any(a=>a.Name==portable) ? portable : $"PeripheralBatteryMonitor-{release.Version}-win-x64.zip";
         var asset=release.Assets.Single(a=>a.Name==name);var sums=release.Assets.Single(a=>a.Name=="SHA256SUMS.txt");
@@ -67,11 +71,16 @@ public sealed class ReleaseService
             throw new InvalidDataException("Package metadata differs from release.");
         string installer=Path.Combine(extracted,"installer","Install.ps1");if(!File.Exists(installer))throw new InvalidDataException("Installer is missing.");
         progress.Report(1);
+        _=Process.Start(CreateInstallerStart(installer,extracted,installedRoot)) ?? throw new IOException("Could not start installer.");
+    }
+    internal static ProcessStartInfo CreateInstallerStart(string installer,string extracted,string? installedRoot)
+    {
         var start=new ProcessStartInfo("powershell.exe") { UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=extracted };
         foreach(string argument in new[]{"-NoProfile","-STA","-ExecutionPolicy","Bypass","-File",installer,"-PackageRoot",extracted})start.ArgumentList.Add(argument);
+        if(installedRoot!=null){start.ArgumentList.Add("-InstallRoot");start.ArgumentList.Add(installedRoot);}
         string modules=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"System32","WindowsPowerShell","v1.0","Modules");
         start.Environment["PSModulePath"]=modules+Path.PathSeparator+Environment.GetEnvironmentVariable("PSModulePath");
-        _=Process.Start(start) ?? throw new IOException("Could not start installer.");
+        return start;
     }
     public static void ValidateArchive(string path,string destination)
     {

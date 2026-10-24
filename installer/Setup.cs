@@ -10,6 +10,12 @@ internal static class Setup
     [STAThread]
     private static void Main()
     {
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+        Application.Run(new InstallationForm());
+    }
+    internal static void Install(string destination)
+    {
         string temporary = Path.Combine(Path.GetTempPath(), "PeripheralBatteryMonitor-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -19,7 +25,7 @@ internal static class Setup
             using (var output = File.Create(archive)) payload.CopyTo(output);
             string package = Path.Combine(temporary, "package");
             ZipFile.ExtractToDirectory(archive, package);
-            var start = new ProcessStartInfo("powershell.exe", "-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + Path.Combine(package, "installer", "Install.ps1") + "\" -PackageRoot \"" + package + "\" -Interactive");
+            var start = new ProcessStartInfo("powershell.exe", "-NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + Path.Combine(package, "installer", "Install.ps1") + "\" -PackageRoot \"" + package + "\" -InstallRoot \"" + destination + "\" -NoLaunch");
             start.UseShellExecute = false;
             start.CreateNoWindow = true;
             start.RedirectStandardError = true;
@@ -30,11 +36,13 @@ internal static class Setup
                 if (process.ExitCode != 0) throw new IOException(error.Length > 0 ? error : "Installation failed.");
             }
         }
-        catch (Exception error)
-        { MessageBox.Show(error.Message, "Peripheral Battery Monitor Setup", MessageBoxButtons.OK, MessageBoxIcon.Error); }
         finally
         {
-            try { if (Directory.Exists(temporary)) Directory.Delete(temporary, true); }
+            try
+            {
+                string prefix=Path.GetFullPath(Path.GetTempPath()).TrimEnd('\\')+"\\PeripheralBatteryMonitor-";
+                if (Path.GetFullPath(temporary).StartsWith(prefix,StringComparison.OrdinalIgnoreCase) && Directory.Exists(temporary)) Directory.Delete(temporary,true);
+            }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }

@@ -15,6 +15,13 @@ internal static class UiSmoke
         {
             await Task.Delay(1400);
             var shell=(AppShell)Shell.Current;
+            string customRoot=Path.Combine(Path.GetTempPath(),"Custom apps","Заряд пристроїв");
+            if(Services.SettingsStore.ResolveInstalledRoot(Path.Combine(customRoot,"versions","1.2.3"))!=customRoot || Services.SettingsStore.ResolveInstalledRoot(customRoot)!=null)
+                throw new InvalidOperationException("Custom installation root detection failed");
+            var installerStart=Services.ReleaseService.CreateInstallerStart(Path.Combine(folder,"Install.ps1"),folder,customRoot);
+            int rootArgument=installerStart.ArgumentList.IndexOf("-InstallRoot");
+            if(rootArgument<0 || installerStart.ArgumentList[rootArgument+1]!=customRoot)
+                throw new InvalidOperationException("Updater must retain the selected installation folder as one argument");
             if(window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter && presenter.IsMaximizable)
                 throw new InvalidOperationException("Window maximization should be disabled");
             if(!window.Title.Contains(Services.AppRuntime.Current.Settings.Version))throw new InvalidOperationException("Version missing from title");

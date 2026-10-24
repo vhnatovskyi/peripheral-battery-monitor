@@ -29,7 +29,7 @@ try{
     if(Test-Path -LiteralPath $portable){Remove-Item -LiteralPath $portable}
     [IO.Compression.ZipFile]::CreateFromDirectory($stage,$portable,[IO.Compression.CompressionLevel]::Optimal,$false)
     $setup=Join-Path $output "PeripheralBatteryMonitor-Setup-$version.exe"
-    & $compiler /nologo /target:winexe /platform:x64 "/out:$setup" "/win32icon:$icon" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.FileSystem.dll "/resource:$portable,payload.zip" (Join-Path $root 'installer/Setup.cs')
+    & $compiler /nologo /target:winexe /platform:x64 "/out:$setup" "/win32icon:$icon" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.FileSystem.dll /reference:System.Drawing.dll /reference:System.Runtime.Serialization.dll /codepage:65001 "/resource:$portable,payload.zip" (Join-Path $root 'installer/Setup.cs') (Join-Path $root 'installer/InstallationForm.cs') (Join-Path $root 'installer/InstallPaths.cs')
     if($LASTEXITCODE -ne 0){throw 'Setup compilation failed'}
     @($portable,$setup) | ForEach-Object {'{0}  {1}' -f (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant(),(Split-Path $_ -Leaf)} | Set-Content (Join-Path $output 'SHA256SUMS.txt') -Encoding ASCII
     "Built MAUI $version in $output"

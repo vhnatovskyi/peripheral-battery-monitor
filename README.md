@@ -6,7 +6,7 @@ A Windows app built with **.NET MAUI** for wireless-device battery status. Nativ
 
 ## Install
 
-Download the **Setup EXE** from [the latest release](https://github.com/vhnatovskyi/peripheral-battery-monitor/releases/latest) and run it. Installation is per-user and does not require administrator rights. You can uninstall it through Windows **Installed apps**.
+Download the **Setup EXE** from [the latest release](https://github.com/vhnatovskyi/peripheral-battery-monitor/releases/latest) and run it. Choose the installation folder using the path field or **Browse**, then select **Install**. Setup preselects your existing installation when available; otherwise it uses the normal per-user Programs folder. You may cancel before installation starts. Choose a separate, writable application folder. Installation is per-user and does not require administrator rights for user-writable locations. Updates, shortcuts, enabled startup and uninstall retain the chosen location. You can uninstall it through Windows **Installed apps**.
 
 For portable use, download and extract the **`win-x64.zip`** release asset and run **PeripheralBatteryMonitor.exe**. Keep the extracted files together. Binaries are unsigned, so Windows may show an unknown-publisher notice.
 
@@ -47,7 +47,9 @@ The app queries each device at startup/reconnect or manual **Refresh batteries**
 
 By default, the app checks the latest stable GitHub release at startup, at most once per day, and notifies you when a newer version exists. **Updates** opens a release picker. Select a newer version, reinstall the current one or roll back to an older compatible release. Downloads are verified before installation and the app restarts with settings retained. Older versions may not support newer settings or features.
 
-The updater validates the release's SHA-256 checksum, expected repository/download paths, package version, archive paths and size. New version files are staged before the active-version pointer changes. Previous version directories are retained. Checksums are integrity checks, not a code-signing certificate. Portable copies are installed into the normal per-user location when you accept an update.
+The updater validates the release's SHA-256 checksum, expected repository/download paths, package version, archive paths and size. New version files are staged before the active-version pointer changes. Previous version directories are retained. Checksums are integrity checks, not a code-signing certificate. Updates from portable copies use the registered installation location when one exists, otherwise the normal per-user location.
+
+Custom installation locations require v0.5.8 or later. When installed outside the default folder, the updater blocks rollback to earlier releases because their installers/uninstallers assume the default location. Settings remain in the user's local profile regardless of the application folder. Choosing a different installation folder leaves the previous installation files in place.
 
 ## Repository layout
 
