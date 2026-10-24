@@ -4,7 +4,7 @@ A lightweight Windows app for wireless-device battery status. One tray icon, a d
 
 ## Install
 
-Download **PeripheralBatteryMonitor-Setup-0.1.0.exe** from [the latest release](https://github.com/vhnatovskyi/peripheral-battery-monitor/releases/latest) and run it. Installation is per-user and does not require administrator rights. You can uninstall it through Windows **Installed apps**.
+Download the **Setup EXE** from [the latest release](https://github.com/vhnatovskyi/peripheral-battery-monitor/releases/latest) and run it. Installation is per-user and does not require administrator rights. You can uninstall it through Windows **Installed apps**.
 
 For portable use, download and extract the `win-x64.zip` release asset and run **PeripheralBatteryMonitor.exe**. Keep the extracted files together. Binaries are unsigned, so Windows may show an unknown-publisher notice.
 

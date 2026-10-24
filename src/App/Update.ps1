@@ -36,7 +36,9 @@ try {
     try {
         $zip=Join-Path $temporary $name
         Invoke-WebRequest -UseBasicParsing -Uri $asset[0].browser_download_url -OutFile $zip -TimeoutSec 120
-        $manifest=(Invoke-WebRequest -UseBasicParsing -Uri $checksums[0].browser_download_url -TimeoutSec 20).Content
+        $manifestPath=Join-Path $temporary 'SHA256SUMS.txt'
+        Invoke-WebRequest -UseBasicParsing -Uri $checksums[0].browser_download_url -OutFile $manifestPath -TimeoutSec 20
+        $manifest=Get-Content -Raw -LiteralPath $manifestPath
         Assert-PbmChecksum $zip $manifest $name
         $extracted=Join-Path $temporary 'package'
         Test-PbmArchive $zip $extracted

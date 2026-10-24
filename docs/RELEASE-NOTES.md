@@ -1,5 +1,6 @@
-## First release
+## v0.1.1
 
+- Fix checksum-manifest downloads when GitHub serves the asset as binary content.
 - One combined tray icon with separate green/blue battery rings, plus a lowest-percentage option.
 - Device window with mouse and keyboard cards, connection status, last-report time and manual refresh.
 - Settings for sign-in startup, low-battery notifications, threshold and update checks.
@@ -8,7 +9,7 @@
 - Passive battery-change listeners; no periodic battery queries.
 - Per-user Windows installer, portable ZIP and in-app release updates with SHA-256 validation.
 
-Download **PeripheralBatteryMonitor-Setup-0.1.0.exe** to install, or extract the ZIP and run **PeripheralBatteryMonitor.exe**.
+Download **PeripheralBatteryMonitor-Setup-0.1.1.exe** to install, or extract the ZIP and run **PeripheralBatteryMonitor.exe**.
 
 The binaries are unsigned. Windows may show an unknown-publisher notice. No third-party drivers or administrator rights are required. Settings and startup options can be changed from the dashboard.
 
