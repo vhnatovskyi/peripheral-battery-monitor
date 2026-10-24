@@ -13,6 +13,7 @@ internal static class Program
     {
         try
         {
+            if(PeripheralBatteryMonitor.SingleInstance.ActivateExisting())return;
             string root = AppDomain.CurrentDomain.BaseDirectory;
             string current = Path.Combine(root, "current.txt");
             string package = root;

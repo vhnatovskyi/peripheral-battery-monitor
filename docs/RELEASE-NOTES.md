@@ -1,3 +1,11 @@
+## v0.5.10
+
+- Activate the running application when launching again. Check the shared instance before loading MAUI or PowerShell; keep one monitor across installation folders and versions, and allow restart after an unexpected exit.
+- Apply all settings immediately, including device visibility, tray mode, theme, language and widget transparency. Remove the Save button and confirmation dialog; rename the positioning action to Move widget.
+- Allow background transparency from 0% to 100%; at 100% the widget background disappears while text and battery bars remain visible.
+- Coalesce automatic settings writes for 250 ms while sliders move, flush pending settings on exit, and show persistence errors in Settings. Avoid rebuilding Settings for each switch or slider change.
+- Create Settings, Updates and About pages only when opened; skip hidden-window UI refreshes while keeping device monitoring, tray and widget live.
+
 ## v0.5.9
 
 - Add independent per-device visibility controls for the widget and tray in Settings. Keep hidden devices on the main Devices page and remember choices across restarts and reconnections. Newly discovered devices are visible by default.

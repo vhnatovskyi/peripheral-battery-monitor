@@ -12,8 +12,8 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ApplicationIcon>../../assets/branding/app-icon.ico</ApplicationIcon>
     <ApplicationId>io.github.vhnatovskyi.peripheralbatterymonitor</ApplicationId>
-    <ApplicationDisplayVersion>0.5.9</ApplicationDisplayVersion>
-    <ApplicationVersion>59</ApplicationVersion>
+    <ApplicationDisplayVersion>0.5.10</ApplicationDisplayVersion>
+    <ApplicationVersion>60</ApplicationVersion>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <SelfContained>false</SelfContained>
@@ -25,6 +25,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Shared/ProductInfo.cs" Link="Properties/ProductInfo.cs" />
+    <Compile Include="../Shared/SingleInstance.cs" Link="Windows/SingleInstance.cs" />
     <MauiIcon Include="Resources/AppIcon/appicon.png" Color="#101820" />
     <MauiSplashScreen Include="Resources/Splash/splash.png" Color="#101820" BaseSize="96,96" />
     <MauiImage Include="Resources/Images/*.svg" />

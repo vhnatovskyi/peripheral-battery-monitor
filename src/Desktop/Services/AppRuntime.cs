@@ -13,7 +13,9 @@ public sealed class AppRuntime
     public event Action<string>? NavigateRequested;
     public event Action? ShowRequested;
     private readonly bool smoke=Environment.GetCommandLineArgs().Contains("--ui-smoke");
-    private Mutex? instance;
+    private IDispatcherTimer? settingsSaveTimer;
+    private bool settingsPending;
+    public event Action<string?>? SettingsSaveStatus;
     private EventWaitHandle? exitEvent,showEvent;
     private IDispatcherTimer? timer;
     private Platforms.Windows.TrayHost? tray;
@@ -29,10 +31,7 @@ public sealed class AppRuntime
     public bool ClaimInstance()
     {
         if(smoke){string? language=Environment.GetEnvironmentVariable("PBM_UI_SMOKE_LANGUAGE");if(language is "uk" or "en")Settings.Value.Language=language;return true;}
-        instance=new Mutex(false,@"Local\AJ139BatteryIndicator");
-        bool owned;try{owned=instance.WaitOne(0);}catch(AbandonedMutexException){owned=true;}
-        if(!owned)
-        { try{using var existing=EventWaitHandle.OpenExisting(@"Local\PeripheralBatteryMonitor.Show");existing.Set();}catch(WaitHandleCannotBeOpenedException){}return false; }
+        if(!SingleInstance.TryClaim())return false;
         exitEvent=new EventWaitHandle(false,EventResetMode.AutoReset,@"Local\PeripheralBatteryMonitor.Exit");
         showEvent=new EventWaitHandle(false,EventResetMode.AutoReset,@"Local\PeripheralBatteryMonitor.Show");
         return true;
@@ -72,7 +71,8 @@ public sealed class AppRuntime
     {
         if(exitEvent?.WaitOne(0)==true){Exit();return;}
         if(showEvent?.WaitOne(0)==true)Show();
-        Readings=Devices.Snapshot();tray?.Update(Readings,Settings.Value);widget?.Update(Readings);Changed?.Invoke();
+        Readings=Devices.Snapshot();tray?.Update(Readings,Settings.Value);widget?.Update(Readings);
+        if(nativeWindow?.AppWindow.IsVisible==true)Changed?.Invoke();
         foreach(var device in Readings.Where(d=>d.Percent.HasValue))
         {
             if(device.Percent>Settings.Value.LowBatteryThreshold+5)alerted[device.Id]=false;
@@ -96,8 +96,30 @@ public sealed class AppRuntime
                 MainThread.BeginInvokeOnMainThread(()=>tray?.Notify(Text("Доступне оновлення","Update available"),$"{latest.Tag} — "+Text("відкрийте Релізи","open Releases")));
         }catch(Exception error) when(error is HttpRequestException or IOException or TaskCanceledException) { }
     }
-    public void SaveSettings(MonitorSettings value)
-    { Settings.Save(value);ApplyTheme();SyncWidget();SettingsChanged?.Invoke();tray?.Invalidate();Tick(); }
+    public void ChangeSettings(MonitorSettings value)
+    {
+        bool translate=Settings.Value.Language!=value.Language;
+        bool theme=Settings.Value.Theme!=value.Theme;
+        Settings.Apply(value);
+        if(theme)ApplyTheme();
+        SyncWidget();
+        if(translate)SettingsChanged?.Invoke();
+        tray?.Invalidate();tray?.Update(Readings,Settings.Value);
+        if(smoke)return;
+        settingsPending=true;
+        settingsSaveTimer??=mauiWindow!.Dispatcher.CreateTimer();
+        settingsSaveTimer.Interval=TimeSpan.FromMilliseconds(250);
+        settingsSaveTimer.Tick-=SavePendingSettings;settingsSaveTimer.Tick+=SavePendingSettings;
+        settingsSaveTimer.Stop();settingsSaveTimer.Start();
+    }
+    private void SavePendingSettings(object? sender,EventArgs args)
+    {
+        settingsSaveTimer?.Stop();
+        if(!settingsPending)return;
+        try { Settings.Save(Settings.Value);settingsPending=false;SettingsSaveStatus?.Invoke(null); }
+        catch(Exception error) when(error is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        { SettingsSaveStatus?.Invoke(error.Message); }
+    }
     private void SyncWidget()
     {
         if(nativeWindow==null || smoke)return;
@@ -145,7 +167,7 @@ public sealed class AppRuntime
         var position=nativeWindow.AppWindow.Position;int bottom=display.WorkArea.Y+display.WorkArea.Height;
         if(position.Y+target*scale>bottom)nativeWindow.AppWindow.Move(new global::Windows.Graphics.PointInt32(position.X,Math.Max(display.WorkArea.Y,bottom-(int)Math.Ceiling(target*scale))));
     }
-    public void Show(){nativeWindow?.AppWindow.Show();nativeWindow?.Activate();ShowRequested?.Invoke();}
+    public void Show(){nativeWindow?.AppWindow.Show();nativeWindow?.Activate();Changed?.Invoke();ShowRequested?.Invoke();}
     private void HandleTrayAction(string action)
     {
         if(action=="exit"){Exit();return;}if(action=="refresh"){Refresh();return;}
@@ -153,9 +175,8 @@ public sealed class AppRuntime
     }
     public void Exit()
     {
-        if(exiting)return;exiting=true;timer?.Stop();widget?.Dispose();tray?.Dispose();
-        try{instance?.ReleaseMutex();}catch(ApplicationException){}
-        instance?.Dispose();exitEvent?.Dispose();showEvent?.Dispose();
+        if(exiting)return;exiting=true;SavePendingSettings(null,EventArgs.Empty);timer?.Stop();widget?.Dispose();tray?.Dispose();
+        SingleInstance.Release();exitEvent?.Dispose();showEvent?.Dispose();
         // Process exit releases pending device reads without delaying an upgrade.
         Environment.Exit(0);
     }

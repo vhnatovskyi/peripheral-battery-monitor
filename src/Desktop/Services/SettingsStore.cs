@@ -42,7 +42,8 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.9";
+    public string Version { get; } = "0.5.10";
+    internal void Apply(MonitorSettings settings) => Value=settings.Copy();
     public SettingsStore()
     {
         try { Value = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(StateRoot,"settings.json")),AppJsonContext.Default.MonitorSettings) ?? new(); }
@@ -52,7 +53,7 @@ public sealed class SettingsStore
         if(Value.TrayMode is not ("Combined" or "Separate")) Value.TrayMode="Combined";
         if(Value.TrayStyle is not ("Battery" or "Percent")) Value.TrayStyle="Battery";
         Value.LowBatteryThreshold=Math.Clamp(Value.LowBatteryThreshold,5,50);
-        Value.WidgetOpacity=Math.Clamp(Value.WidgetOpacity,20,100);
+        Value.WidgetOpacity=Math.Clamp(Value.WidgetOpacity,0,100);
         Value.WidgetHiddenDevices=Value.WidgetHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
         Value.TrayHiddenDevices=Value.TrayHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
     }

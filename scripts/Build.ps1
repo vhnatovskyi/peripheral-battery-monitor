@@ -19,7 +19,7 @@ try {
     if(-not (Test-Path -LiteralPath $compiler)){throw 'Windows .NET Framework compiler not available.'}
     $launcher=Join-Path $stage 'PeripheralBatteryMonitor.exe'
     $automation=[System.Management.Automation.PowerShell].Assembly.Location
-    & $compiler /nologo /target:winexe /platform:x64 "/out:$launcher" "/win32icon:$icon" /reference:System.Windows.Forms.dll "/reference:$automation" /codepage:65001 (Join-Path $root 'src/Shared/ProductInfo.cs') (Join-Path $root 'src/Launcher/Program.cs')
+    & $compiler /nologo /target:winexe /platform:x64 "/out:$launcher" "/win32icon:$icon" /reference:System.Windows.Forms.dll "/reference:$automation" /codepage:65001 (Join-Path $root 'src/Shared/ProductInfo.cs') (Join-Path $root 'src/Shared/SingleInstance.cs') (Join-Path $root 'src/Launcher/Program.cs')
     if($LASTEXITCODE -ne 0){throw 'Launcher compilation failed.'}
     $zipName="PeripheralBatteryMonitor-$version-win-x64.zip"
     $zip=Join-Path $output $zipName

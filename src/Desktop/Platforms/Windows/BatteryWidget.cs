@@ -33,7 +33,7 @@ internal sealed class BatteryWidget : IDisposable
     internal bool ClickThrough=>(GetWindowLong(handle,-20)&0x20)!=0;
     internal bool IsAlwaysOnTop=>(GetWindowLong(handle,-20)&8)!=0;
     internal bool HasBorder=>(GetWindowLong(handle,-16)&0x00C40000)!=0;
-    internal byte BackgroundOpacity=>(byte)Math.Round(Math.Clamp(AppRuntime.Current.Settings.Value.WidgetOpacity,20,100)*2.55);
+    internal byte BackgroundOpacity=>(byte)Math.Round(Math.Clamp(AppRuntime.Current.Settings.Value.WidgetOpacity,0,100)*2.55);
     internal Rectangle Bounds { get { GetWindowRect(handle,out var r);return new(r.Left,r.Top,r.Right-r.Left,r.Bottom-r.Top); } }
 
     public BatteryWidget(Microsoft.UI.Xaml.Window main,bool persistPosition=true)

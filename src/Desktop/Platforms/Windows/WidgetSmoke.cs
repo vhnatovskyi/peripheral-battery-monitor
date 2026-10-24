@@ -60,7 +60,7 @@ internal static class WidgetSmoke
             foreach(var theme in new[]{AppTheme.Light,AppTheme.Dark})
             {
                 Application.Current!.UserAppTheme=theme;
-                foreach(int opacity in new[]{20,50,100})
+                foreach(int opacity in new[]{0,20,50,100})
                 {
                     AppRuntime.Current.Settings.Value.WidgetOpacity=opacity;widget.Update(readings);widget.Raise();await Task.Delay(250);
                     using var preview=widget.RenderPreview();
@@ -80,7 +80,7 @@ internal static class WidgetSmoke
                     }
                 }
             }
-            File.WriteAllText(Path.Combine(folder,"widget-result.txt"),"PASS: real desktop composition at 20%, 50%, 100% opacity in both themes; no window border; opaque content; focus guard");
+            File.WriteAllText(Path.Combine(folder,"widget-result.txt"),"PASS: real desktop composition at 0%, 20%, 50%, 100% background opacity in both themes; no window border; opaque content; focus guard; independent visibility");
         }
         finally { background.Close();preferences.WidgetOpacity=originalOpacity;preferences.WidgetHiddenDevices=originalHidden; }
     }

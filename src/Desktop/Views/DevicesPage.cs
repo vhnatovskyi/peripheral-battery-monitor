@@ -25,7 +25,7 @@ internal sealed class DevicesPage : ContentPage
         var toolbar=new Grid { ColumnDefinitions=[new(GridLength.Star),new(GridLength.Auto)],Padding=new Thickness(12,0),HeightRequest=36 };
         toolbar.Add(heading);toolbar.Add(refresh,1);Shell.SetTitleView(this,toolbar);
         void Translate(){heading.Text=Design.T("Пристрої","Devices");string caption=Design.T("Оновити заряд пристроїв","Refresh device batteries");refresh.Source=Design.IsDark?"refresh.png":"refresh_light.png";ToolTipProperties.SetText(refresh,caption);SemanticProperties.SetDescription(refresh,caption);layoutKey="";Refresh();}
-        AppRuntime.Current.Changed+=Refresh;AppRuntime.Current.SettingsChanged+=Translate;AppRuntime.Current.AppearanceChanged+=Translate;
+        AppRuntime.Current.Changed+=()=>{if(Shell.Current?.CurrentPage==this)Refresh();};Appearing+=(_,_)=>Refresh();AppRuntime.Current.SettingsChanged+=Translate;AppRuntime.Current.AppearanceChanged+=Translate;
         SizeChanged+=(_,_)=>{toolbar.WidthRequest=Math.Max(120,Width-8);Refresh();};Translate();
     }
     private void Refresh()

@@ -43,6 +43,25 @@ internal static class UiSmoke
                     if(refresh.Handler?.PlatformView is Microsoft.UI.Xaml.DependencyObject native && Microsoft.UI.Xaml.Controls.ToolTipService.GetToolTip(native)==null)
                         throw new InvalidOperationException("Native refresh tooltip missing");
                 }
+                if(route=="settings")
+                {
+                    var elements=Descendants((IVisualTreeElement)Shell.Current.CurrentPage).ToArray();
+                    if(elements.OfType<Button>().Any(b=>b.Text is "Зберегти зміни" or "Save changes"))throw new InvalidOperationException("Manual Save button remains");
+                    var preferences=Services.AppRuntime.Current.Settings.Value.Copy();
+                    var widget=elements.OfType<Switch>().Single(s=>s.AutomationId=="WidgetDevice_demo-mouse");
+                    bool before=widget.IsToggled;widget.IsToggled=!before;
+                    if(Services.AppRuntime.Current.Settings.Value.ShowInWidget("demo-mouse")==before)throw new InvalidOperationException("Widget setting did not apply immediately");
+                    widget.IsToggled=before;
+                    var tray=elements.OfType<Switch>().Single(s=>s.AutomationId=="TrayDevice_demo-mouse");
+                    bool trayBefore=tray.IsToggled;tray.IsToggled=!trayBefore;
+                    if(Services.AppRuntime.Current.Settings.Value.ShowInTray("demo-mouse")==trayBefore)throw new InvalidOperationException("Tray setting did not apply immediately");
+                    tray.IsToggled=trayBefore;
+                    var slider=elements.OfType<Slider>().Single(s=>s.AutomationId=="WidgetTransparency");
+                    double oldValue=slider.Value;slider.Value=100;
+                    if(Services.AppRuntime.Current.Settings.Value.WidgetOpacity!=0)throw new InvalidOperationException("100% background transparency did not apply immediately");
+                    slider.Value=oldValue;
+                    Services.AppRuntime.Current.ChangeSettings(preferences);
+                }
                 if(Shell.Current.CurrentPage.Handler==null)throw new InvalidOperationException("Missing native page handler: "+route);
                 var bitmap=new RenderTargetBitmap();await bitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)window.Content);
                 if(bitmap.PixelWidth<300||bitmap.PixelHeight<200)throw new InvalidOperationException("Invalid native layout size");
@@ -84,4 +103,6 @@ internal static class UiSmoke
         catch(Exception error){File.WriteAllText(Path.Combine(folder,"result.txt"),error.ToString());Environment.Exit(1);}
     }
     private static string CreateFile(string path){File.WriteAllBytes(path,[]);return path;}
+    private static IEnumerable<IVisualTreeElement> Descendants(IVisualTreeElement element)
+    { foreach(var child in element.GetVisualChildren()){yield return child;foreach(var nested in Descendants(child))yield return nested;} }
 }
