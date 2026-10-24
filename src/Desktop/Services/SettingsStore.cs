@@ -15,7 +15,12 @@ public sealed class MonitorSettings
     public bool CheckForUpdates { get; set; } = true;
     public bool WidgetEnabled { get; set; }
     public int WidgetOpacity { get; set; } = 100;
-    public MonitorSettings Copy() => (MonitorSettings)MemberwiseClone();
+    public string[] WidgetHiddenDevices { get; set; } = [];
+    public string[] TrayHiddenDevices { get; set; } = [];
+    public bool ShowInWidget(string deviceId) => !WidgetHiddenDevices.Contains(deviceId,StringComparer.OrdinalIgnoreCase);
+    public bool ShowInTray(string deviceId) => !TrayHiddenDevices.Contains(deviceId,StringComparer.OrdinalIgnoreCase);
+    public MonitorSettings Copy()
+    { var copy=(MonitorSettings)MemberwiseClone();copy.WidgetHiddenDevices=[..WidgetHiddenDevices];copy.TrayHiddenDevices=[..TrayHiddenDevices];return copy; }
 }
 
 public sealed class SettingsStore
@@ -37,7 +42,7 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.8";
+    public string Version { get; } = "0.5.9";
     public SettingsStore()
     {
         try { Value = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(StateRoot,"settings.json")),AppJsonContext.Default.MonitorSettings) ?? new(); }
@@ -48,6 +53,8 @@ public sealed class SettingsStore
         if(Value.TrayStyle is not ("Battery" or "Percent")) Value.TrayStyle="Battery";
         Value.LowBatteryThreshold=Math.Clamp(Value.LowBatteryThreshold,5,50);
         Value.WidgetOpacity=Math.Clamp(Value.WidgetOpacity,20,100);
+        Value.WidgetHiddenDevices=Value.WidgetHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
+        Value.TrayHiddenDevices=Value.TrayHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
     }
     public void Save(MonitorSettings settings)
     {

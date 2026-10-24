@@ -1,3 +1,10 @@
+## v0.5.9
+
+- Add independent per-device visibility controls for the widget and tray in Settings. Keep hidden devices on the main Devices page and remember choices across restarts and reconnections. Newly discovered devices are visible by default.
+- Keep a neutral application entry in the tray when all battery indicators are hidden, so the app can still be opened.
+- Embed the application icon directly in the installer window and executable.
+- Include developer name, contact, version, copyright and project/profile URLs in application, launcher and installer file metadata. Windows displays URLs as text in file comments; clickable links remain available in About.
+
 ## v0.5.8
 
 - Ask where to install the application before extracting or installing it. Include an editable destination, Browse, Cancel and installation progress, with Ukrainian and English labels.

@@ -30,6 +30,14 @@ internal static class InstallerFormTests
             Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);
             using(var form=new InstallationForm())
             {
+                using(var stream=typeof(InstallationForm).Assembly.GetManifestResourceStream("app-icon.ico"))
+                using(var expected=new Icon(stream))
+                using(var a=expected.ToBitmap())
+                using(var b=form.Icon.ToBitmap())
+                {
+                    if(a.Size!=b.Size)throw new Exception("Installer icon size differs from branding");
+                    for(int y=0;y<a.Height;y++)for(int x=0;x<a.Width;x++)if(a.GetPixel(x,y)!=b.GetPixel(x,y))throw new Exception("Installer icon differs from branding");
+                }
                 if(form.InstallFolder.Text!=InstallPaths.PreferredRoot() || !form.Browse.Enabled || !form.InstallButton.Enabled)throw new Exception("Folder chooser UI is incomplete");
                 form.InstallFolder.Text=@"D:\Apps\PeripheralBatteryMonitor";
                 form.Show();Application.DoEvents();

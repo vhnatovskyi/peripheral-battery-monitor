@@ -79,6 +79,7 @@ internal sealed class BatteryWidget : IDisposable
     public void Update(IReadOnlyList<DeviceReading> value)
     {
         if(disposed)return;readings=value;
+        value=value.Where(d=>AppRuntime.Current.Settings.Value.ShowInWidget(d.Id)).ToArray();
         bool dark=Views.Design.IsDark;
         string next=$"{dark}|{BackgroundOpacity}|{AppRuntime.Current.Settings.Value.Language}|"+string.Join('|',value.Select(d=>$"{d.Id}:{d.Name}:{d.Percent}:{d.Accent}"));
         if(fingerprint==next)return;
@@ -104,7 +105,7 @@ internal sealed class BatteryWidget : IDisposable
             using var track=new SolidBrush(ColorTranslator.FromHtml(dark?"#34465D":"#DCE5F0"));
             using var names=new StringFormat { Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap,LineAlignment=StringAlignment.Center };
             using var charges=new StringFormat { Alignment=StringAlignment.Far,LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap };
-            if(value.Count==0)g.DrawString(AppRuntime.Current.Text("Немає підключених пристроїв","No connected devices"),nameFont,text,new RectangleF((float)(10*scale),0,width-(float)(20*scale),height),names);
+            if(value.Count==0)g.DrawString(readings.Count==0?AppRuntime.Current.Text("Немає підключених пристроїв","No connected devices"):AppRuntime.Current.Text("Усі пристрої приховані","All devices hidden"),nameFont,text,new RectangleF((float)(10*scale),0,width-(float)(20*scale),height),names);
             for(int i=0;i<value.Count;i++)
             {
                 float top=(float)((5+i*38)*scale);if(top+29*scale>height)break;

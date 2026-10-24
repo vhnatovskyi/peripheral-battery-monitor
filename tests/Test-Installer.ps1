@@ -8,6 +8,13 @@ try{
     $root=Join-Path $temporary 'Custom apps\Заряд пристроїв'
     & (Join-Path $package 'installer/Install.ps1') -PackageRoot $package -InstallRoot $root -NoLaunch -NoIntegration
     $version=(Get-Content -Raw (Join-Path $package 'version.json') | ConvertFrom-Json).version
+    foreach($file in @('PeripheralBatteryMonitor.exe','app/PeripheralBatteryMonitor.Desktop.exe','app/PeripheralBatteryMonitor.Desktop.dll')){
+        $path=Join-Path $package $file
+        if(Test-Path -LiteralPath $path){
+            $info=[Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+            if($info.CompanyName -ne 'Vladyslav Hnatovskyi' -or $info.ProductVersion -ne $version -or $info.Comments -notlike '*github.com/vhnatovskyi/peripheral-battery-monitor*'){throw "Developer metadata missing: $file"}
+        }
+    }
     if((Get-Content -Raw (Join-Path $root 'current.txt')).Trim() -ne $version){throw 'Initial version pointer incorrect'}
     $settings=Join-Path $temporary 'settings.json'
     Set-Content -LiteralPath $settings -Value '{"LowBatteryThreshold":15}'

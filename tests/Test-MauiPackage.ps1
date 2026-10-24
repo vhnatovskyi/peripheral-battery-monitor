@@ -13,4 +13,7 @@ try{
     if(($archive.Entries | Measure-Object Length -Sum).Sum -gt 100MB){throw 'Package exceeds legacy archive limit'}
 }finally{$archive.Dispose()}
 & (Join-Path $PSScriptRoot 'Test-Installer.ps1') -PackageZip $zip
+$setup=Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) "PeripheralBatteryMonitor-Setup-$version.exe"
+$info=[Diagnostics.FileVersionInfo]::GetVersionInfo($setup)
+if($info.CompanyName -ne 'Vladyslav Hnatovskyi' -or $info.ProductVersion -ne $version -or $info.Comments -notlike '*linkedin.com/in/vladyslav-hnatovskyi/*' -or $info.LegalCopyright -notlike '*vhnatovskyi@hotmail.com*'){throw 'Installer developer metadata missing'}
 'MAUI compact package tests passed'

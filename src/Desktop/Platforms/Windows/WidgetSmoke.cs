@@ -14,6 +14,9 @@ internal static class WidgetSmoke
     internal static async Task RunAsync(Microsoft.UI.Xaml.Window main,string folder,IReadOnlyList<DeviceReading> readings)
     {
         int originalOpacity=AppRuntime.Current.Settings.Value.WidgetOpacity;
+        var preferences=AppRuntime.Current.Settings.Value;
+        var originalHidden=preferences.WidgetHiddenDevices;
+        preferences.WidgetHiddenDevices=[];
         var background=new Microsoft.UI.Xaml.Window { Title="PBM widget transparency test" };
         var grid=new Microsoft.UI.Xaml.Controls.Grid();
         grid.ColumnDefinitions.Add(new());grid.ColumnDefinitions.Add(new());
@@ -26,6 +29,20 @@ internal static class WidgetSmoke
         {
             using var widget=new BatteryWidget(main,false);widget.Update(readings);
             if(!widget.IsAlwaysOnTop || widget.HasBorder || !widget.ClickThrough || widget.DeviceCount!=3)throw new InvalidOperationException("Widget must be borderless, passive and topmost");
+            var draft=preferences.Copy();draft.WidgetHiddenDevices=[readings[0].Id];
+            if(!preferences.ShowInWidget(readings[0].Id))throw new InvalidOperationException("Draft changed saved preferences");
+            preferences.WidgetHiddenDevices=draft.WidgetHiddenDevices;widget.Update(readings);
+            draft.TrayHiddenDevices=[readings[1].Id];
+            if(!preferences.ShowInTray(readings[1].Id) || TrayHost.VisibleDevices(readings,draft).Any(d=>d.Id==readings[1].Id) || !draft.ShowInTray(readings[0].Id))
+                throw new InvalidOperationException("Tray and widget visibility must be independent");
+            var json=System.Text.Json.JsonSerializer.Serialize(draft,AppJsonContext.Default.MonitorSettings);
+            var restored=System.Text.Json.JsonSerializer.Deserialize(json,AppJsonContext.Default.MonitorSettings)!;
+            if(restored.ShowInTray(readings[1].Id) || restored.ShowInWidget(readings[0].Id))throw new InvalidOperationException("Visibility choices did not survive serialization");
+            if(widget.DeviceCount!=2 || readings.Count!=3)throw new InvalidOperationException("Widget hiding must affect only the widget");
+            preferences.WidgetHiddenDevices=readings.Select(d=>d.Id).ToArray();widget.Update(readings);
+            if(widget.DeviceCount!=0)throw new InvalidOperationException("Hiding all widget devices failed");
+            preferences.WidgetHiddenDevices=[];widget.Update(readings);
+            if(widget.DeviceCount!=3)throw new InvalidOperationException("Restoring widget devices failed");
             widget.SetMoving(true);
             if(widget.ClickThrough || !widget.IsMoving)throw new InvalidOperationException("Positioning must enable dragging");
             widget.CheckInteractionFocus(false);
@@ -65,7 +82,7 @@ internal static class WidgetSmoke
             }
             File.WriteAllText(Path.Combine(folder,"widget-result.txt"),"PASS: real desktop composition at 20%, 50%, 100% opacity in both themes; no window border; opaque content; focus guard");
         }
-        finally { background.Close();AppRuntime.Current.Settings.Value.WidgetOpacity=originalOpacity; }
+        finally { background.Close();preferences.WidgetOpacity=originalOpacity;preferences.WidgetHiddenDevices=originalHidden; }
     }
     private static void AssertBlend(Color actual,Color backdrop,Color tint,int opacity)
     {

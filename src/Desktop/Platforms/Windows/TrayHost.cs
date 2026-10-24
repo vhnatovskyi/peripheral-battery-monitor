@@ -49,9 +49,11 @@ public sealed class TrayHost : IDisposable
     public TrayHost(Microsoft.UI.Xaml.Window nativeWindow,Action<string> onAction)
     { window=WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);action=onAction;callback=WindowMessage;SetWindowSubclass(window,callback,new UIntPtr(815),IntPtr.Zero); }
     public void Invalidate()=>fingerprint="";
+    internal static DeviceReading[] VisibleDevices(IReadOnlyList<DeviceReading> readings,MonitorSettings settings)=>readings.Where(d=>settings.ShowInTray(d.Id)).ToArray();
     public void Update(IReadOnlyList<DeviceReading> readings,MonitorSettings current)
     {
         settings=current;
+        readings=VisibleDevices(readings,current);
         string key=current.TrayMode+current.TrayStyle+current.Language+string.Join('|',readings.Select(d=>$"{d.Id}:{d.Percent}:{d.Accent}:{d.Transport}"));
         if(key==fingerprint)return;fingerprint=key;
         bool combined=current.TrayMode!="Separate" || readings.Count==0;
@@ -60,7 +62,8 @@ public sealed class TrayHost : IDisposable
         for(int i=0;i<groups.Length;i++)
         {
             uint id=(uint)i+1;used.Add(id);var group=groups[i];
-            using var bitmap=TrayBatteryPainter.Render(group.Select(d=>d.Percent ?? -1).ToArray(),group.Select(d=>{var color=ColorTranslator.FromHtml(d.Accent);return lightTaskbar && !combined ? Color.FromArgb((int)(color.R*.62),(int)(color.G*.62),(int)(color.B*.62)):color;}).ToArray(),combined,current.TrayStyle=="Percent",Math.Max(16,GetSystemMetricsForDpi(49,GetDpiForWindow(window))),lightTaskbar);
+            int size=Math.Max(16,GetSystemMetricsForDpi(49,GetDpiForWindow(window)));
+            using var bitmap=group.Length==0 ? ApplicationIcon(size) : TrayBatteryPainter.Render(group.Select(d=>d.Percent ?? -1).ToArray(),group.Select(d=>{var color=ColorTranslator.FromHtml(d.Accent);return lightTaskbar && !combined ? Color.FromArgb((int)(color.R*.62),(int)(color.G*.62),(int)(color.B*.62)):color;}).ToArray(),combined,current.TrayStyle=="Percent",size,lightTaskbar);
             IntPtr image=bitmap.GetHicon();
             var data=Data(id);data.Flags=1|2|4;data.Message=Callback;data.Icon=image;data.Tip=Tooltip(group,current.Language);
             Shell_NotifyIcon(icons.ContainsKey(id) ? 1u : 0u,ref data);
@@ -69,9 +72,11 @@ public sealed class TrayHost : IDisposable
         foreach(uint id in icons.Keys.Where(id=>!used.Contains(id)).ToArray())Remove(id);
     }
     private IconData Data(uint id)=>new(){Size=Marshal.SizeOf<IconData>(),Window=window,Id=id,Tip="",Info="",Title=""};
+    private static Bitmap ApplicationIcon(int size)
+    { using var icon=new Icon(Path.Combine(AppContext.BaseDirectory,"app-icon.ico"),size,size);return icon.ToBitmap(); }
     private static string Tooltip(DeviceReading[] devices,string language)
     {
-        if(devices.Length==0)return language=="uk" ? "Немає підключених пристроїв" : "No devices connected";
+        if(devices.Length==0)return language=="uk" ? "Peripheral Battery Monitor — відкрити програму" : "Peripheral Battery Monitor — open application";
         return string.Join('\n',devices.Select(d=>
         {
             string tail=$": {(d.Percent.HasValue ? d.Percent+"%" : "--")} / {(d.Transport=="Bluetooth" ? "BT" : d.Transport.Contains("2.4") ? "2.4G" : "USB")}";

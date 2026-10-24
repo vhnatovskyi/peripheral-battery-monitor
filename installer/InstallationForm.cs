@@ -27,7 +27,8 @@ internal sealed class InstallationForm : Form
         Text="Peripheral Battery Monitor — "+T("Встановлення","Setup");
         Font=new Font("Segoe UI",9);ClientSize=new Size(540,250);AutoScaleMode=AutoScaleMode.Dpi;
         FormBorderStyle=FormBorderStyle.FixedDialog;MaximizeBox=false;MinimizeBox=false;StartPosition=FormStartPosition.CenterScreen;
-        try { Icon=Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch(ArgumentException) { }
+        using(var stream=typeof(InstallationForm).Assembly.GetManifestResourceStream("app-icon.ico"))
+        using(var icon=new Icon(stream)) Icon=(Icon)icon.Clone();
         Controls.Add(new Label { Text=T("Встановлення програми","Install application"),Font=new Font("Segoe UI",14,FontStyle.Bold),AutoSize=true,Location=new Point(20,16) });
         Controls.Add(new Label { Text=T("Оберіть окрему папку для Peripheral Battery Monitor.","Choose a separate folder for Peripheral Battery Monitor."),AutoSize=true,Location=new Point(20,52) });
         Controls.Add(new Label { Text=T("Папка встановлення","Installation folder"),AutoSize=true,Location=new Point(20,88) });
