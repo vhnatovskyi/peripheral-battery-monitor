@@ -58,6 +58,11 @@ internal sealed class SettingsPage : ContentPage
         var updates=new Switch { IsToggled=draft.CheckForUpdates };updates.Toggled+=(_,e)=>{draft.CheckForUpdates=e.Value;Apply();};
         var alerts=new Switch { IsToggled=draft.LowBatteryAlerts };alerts.Toggled+=(_,e)=>{draft.LowBatteryAlerts=e.Value;Apply();};
         var widget=new Switch { IsToggled=draft.WidgetEnabled,AutomationId="EnableBatteryWidget" };
+        var widgetMode=new Picker { ItemsSource=new[]{Design.T("Звичайний","Standard"),"Minimized"},SelectedIndex=draft.WidgetMode=="Minimized"?1:0,AutomationId="WidgetMode" };
+        var orientation=new Picker { ItemsSource=new[]{Design.T("Горизонтально","Horizontal"),Design.T("Вертикально","Vertical")},SelectedIndex=draft.WidgetOrientation=="Vertical"?1:0,AutomationId="WidgetOrientation" };
+        var orientationRow=Row(Design.T("Розташування","Orientation"),orientation);orientationRow.IsVisible=draft.WidgetMode=="Minimized";
+        widgetMode.SelectedIndexChanged+=(_,_)=>{draft.WidgetMode=widgetMode.SelectedIndex==1?"Minimized":"Standard";orientationRow.IsVisible=draft.WidgetMode=="Minimized";Apply();};
+        orientation.SelectedIndexChanged+=(_,_)=>{draft.WidgetOrientation=orientation.SelectedIndex==1?"Vertical":"Horizontal";Apply();};
         var move=Design.Button(Design.T("Перемістити віджет","Move widget"),async(_,_)=>
         {
             try { AppRuntime.Current.MoveWidget(); }
@@ -74,7 +79,7 @@ internal sealed class SettingsPage : ContentPage
         var stack=Design.Stack(
             Design.Hint(Design.T("Зміни застосовуються й зберігаються автоматично.","Changes apply and save automatically.")),
             Design.Panel(Design.Stack(Design.Label(Design.T("Вигляд і мова","Appearance and language"),14,true),Row(Design.T("Іконки в треї","Tray icons"),mode),Row(Design.T("Мова","Language"),language),Row(Design.T("Тема","Theme"),theme))),
-            Design.Panel(Design.Stack(Row(Design.T("Віджет поверх вікон","Always-on-top widget"),widget),Row(Design.T("Прозорість фону","Background transparency"),transparency),opacity,Design.Hint(Design.T("Текст залишається чітким. Кліки проходять крізь віджет; переміщення дозволяється кнопкою нижче й блокується при переході до іншої програми.","Text stays opaque. Clicks pass through; enable moving below. Switching to another app locks it again.")),move)),
+            Design.Panel(Design.Stack(Row(Design.T("Віджет поверх вікон","Always-on-top widget"),widget),Row(Design.T("Режим віджета","Widget mode"),widgetMode),orientationRow,Row(Design.T("Прозорість фону","Background transparency"),transparency),opacity,Design.Hint(Design.T("Текст залишається чітким. Кліки проходять крізь віджет; переміщення дозволяється кнопкою нижче й блокується при переході до іншої програми.","Text stays opaque. Clicks pass through; enable moving below. Switching to another app locks it again.")),move)),
             Design.Panel(Design.Stack(Design.Label(Design.T("Видимість пристроїв","Device visibility"),14,true),Design.Hint(Design.T("Незалежний показ у віджеті та над годинником. Застосовується одразу.","Choose independently for the widget and tray. Applies immediately.")),widgetDevices)),
             Design.Panel(Design.Stack(Design.Label(Design.T("Сповіщення","Notifications"),16,true),Row(Design.T("Низький заряд","Low battery"),alerts),Row(Design.T("Поріг сповіщення","Alert threshold"),threshold),slider)),
             Design.Panel(Design.Stack(Design.Label(Design.T("Програма","Application"),16,true),Row(Design.T("Запускати з Windows","Start with Windows"),startup),Row(Design.T("Перевіряти оновлення щодня","Check for updates daily"),updates))));

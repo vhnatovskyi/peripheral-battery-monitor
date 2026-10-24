@@ -22,6 +22,7 @@ namespace Aj139Battery
         internal bool Eligible;
         internal bool Specialized;
         internal int NameScore;
+        internal DiscoveredDevice Copy() { return (DiscoveredDevice)MemberwiseClone(); }
     }
 
     public sealed class BluetoothEndpoint
@@ -72,7 +73,15 @@ namespace Aj139Battery
         public long RefreshVersion { get { return Interlocked.Read(ref refreshVersion); } }
         public void SetError(string message) { LastError = message; }
         public void SetEndpoints(BluetoothEndpoint[] value)
-        { lock (sync) endpoints = value; refresh.Set(); }
+        {
+            lock (sync)
+            {
+                endpoints = value;
+                // Bluetooth reports update the cached inventory directly. They
+                // do not require another complete SetupAPI enumeration.
+                PublishDevices();
+            }
+        }
         public string ResolveBluetoothAddress(string id, string name)
         {
             lock(sync)
@@ -94,6 +103,7 @@ namespace Aj139Battery
         public void Refresh() { Interlocked.Increment(ref refreshVersion); refresh.Set(); }
         private void Run()
         {
+            var waits = new WaitHandle[] { stopped, refresh };
             while (!stopped.WaitOne(0))
             {
                 try
@@ -104,20 +114,25 @@ namespace Aj139Battery
                         string oldKnownKey = Fingerprint(knownDevices);
                         knownDevices = found;
                         string newKnownKey = Fingerprint(knownDevices);
-                        found = found.Where(d => !d.Specialized).ToArray();
-                        found = MergeEndpoints(found, endpoints);
-                        string oldKey = Fingerprint(devices), newKey = Fingerprint(found);
-                        devices = found;
-                        if (oldKey != newKey || oldKnownKey != newKnownKey) version++;
+                        bool changed = PublishDevices();
+                        if (!changed && oldKnownKey != newKnownKey) version++;
                     }
                 }
                 catch (Exception error) { LastError = error.Message; }
-                if (WaitHandle.WaitAny(new WaitHandle[] { stopped, refresh }, 3000) == 0) break;
+                if (WaitHandle.WaitAny(waits, 3000) == 0) break;
             }
+        }
+        private bool PublishDevices()
+        {
+            var found = MergeEndpoints(knownDevices.Where(d => !d.Specialized).ToArray(), endpoints);
+            bool changed = Fingerprint(devices) != Fingerprint(found);
+            devices = found;
+            if (changed) version++;
+            return changed;
         }
         public static DiscoveredDevice[] MergeEndpoints(DiscoveredDevice[] native, BluetoothEndpoint[] endpoints)
         {
-            var result = native.ToDictionary(d => d.Id, StringComparer.OrdinalIgnoreCase);
+            var result = native.ToDictionary(d => d.Id, d => d.Copy(), StringComparer.OrdinalIgnoreCase);
             foreach (var group in endpoints.GroupBy(e => e.Id, StringComparer.OrdinalIgnoreCase))
             {
                 var active = group.Where(e => e.Connected).ToArray();
@@ -140,13 +155,14 @@ namespace Aj139Battery
             return result.Values.OrderBy(d => d.Name).ToArray();
         }
         private static string Fingerprint(DiscoveredDevice[] entries)
-        { return String.Join("\n", entries.Select(d => d.Id + "|" + d.Name + "|" + d.Transport + "|" + d.Percent + "|" + d.Connected + "|" + d.Status)); }
+        { return String.Join("\n", entries.Select(d => d.Id + "|" + d.Name + "|" + d.Transport + "|" + d.Percent + "|" + d.Connected + "|" + d.Status + "|" + d.BluetoothAddress)); }
         public void Dispose()
         { stopping = true; stopped.Set(); if (worker != null) worker.GetAwaiter().GetResult(); refresh.Dispose(); stopped.Dispose(); }
     }
 
     public static class WindowsDeviceDiscovery
     {
+        [ThreadStatic] private static byte[] propertyBuffer;
         [StructLayout(LayoutKind.Sequential)]
         private struct DeviceInfo { public int Size; public Guid ClassGuid; public uint DevInst; public IntPtr Reserved; }
         [StructLayout(LayoutKind.Sequential)]
@@ -173,8 +189,15 @@ namespace Aj139Battery
 
         private static byte[] Property(IntPtr set, ref DeviceInfo info, Key key, out uint type)
         {
-            uint needed; var data = new byte[4096];
-            if (!ReadProperty(set, ref info, ref key, out type, data, (uint)data.Length, out needed, 0) || needed > data.Length) return null;
+            uint needed;
+            var data = propertyBuffer ?? (propertyBuffer = new byte[256]);
+            bool read = ReadProperty(set, ref info, ref key, out type, data, (uint)data.Length, out needed, 0);
+            if (!read && needed > data.Length && needed <= 65536)
+            {
+                data = propertyBuffer = new byte[needed];
+                read = ReadProperty(set, ref info, ref key, out type, data, (uint)data.Length, out needed, 0);
+            }
+            if (!read || needed > data.Length) return null;
             var result = new byte[needed]; Array.Copy(data, result, needed); return result;
         }
         private static string Text(IntPtr set, ref DeviceInfo info, Key key)
@@ -192,15 +215,17 @@ namespace Aj139Battery
         public static DiscoveredDevice[] Scan(bool includeSpecialized)
         {
             var groups = new Dictionary<string, DiscoveredDevice>(StringComparer.OrdinalIgnoreCase);
+            var identifier = new StringBuilder(2048);
+            int infoSize = Marshal.SizeOf(typeof(DeviceInfo));
             var set = SetupDiGetClassDevs(IntPtr.Zero, null, IntPtr.Zero, 6);
             if (set == new IntPtr(-1)) throw new System.ComponentModel.Win32Exception();
             try
             {
                 for (uint index = 0; ; index++)
                 {
-                    var info = new DeviceInfo(); info.Size = Marshal.SizeOf(info);
+                    var info = new DeviceInfo(); info.Size = infoSize;
                     if (!SetupDiEnumDeviceInfo(set, index, ref info)) break;
-                    var identifier = new StringBuilder(2048); uint needed;
+                    identifier.Length = 0; uint needed;
                     if (!SetupDiGetDeviceInstanceId(set, ref info, identifier, (uint)identifier.Capacity, out needed)) continue;
                     string id = identifier.ToString();
                     bool bluetooth = id.StartsWith("BTH", StringComparison.OrdinalIgnoreCase) || id.IndexOf("BLUETOOTH", StringComparison.OrdinalIgnoreCase) >= 0;

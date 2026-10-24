@@ -12,11 +12,12 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ApplicationIcon>../../assets/branding/app-icon.ico</ApplicationIcon>
     <ApplicationId>io.github.vhnatovskyi.peripheralbatterymonitor</ApplicationId>
-    <ApplicationDisplayVersion>0.5.11</ApplicationDisplayVersion>
-    <ApplicationVersion>61</ApplicationVersion>
+    <ApplicationDisplayVersion>0.5.12</ApplicationDisplayVersion>
+    <ApplicationVersion>62</ApplicationVersion>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <SelfContained>false</SelfContained>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
     <TargetPlatformMinVersion>10.0.19041.0</TargetPlatformMinVersion>
@@ -24,6 +25,7 @@
     <SatelliteResourceLanguages>en;uk</SatelliteResourceLanguages>
   </PropertyGroup>
   <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="9" />
     <Compile Include="../Shared/ProductInfo.cs" Link="Properties/ProductInfo.cs" />
     <Compile Include="../Shared/SingleInstance.cs" Link="Windows/SingleInstance.cs" />
     <MauiImage Include="Resources/Images/brand.png" Resize="false" />

@@ -81,12 +81,16 @@ internal sealed class BatteryWidget : IDisposable
         if(disposed)return;readings=value;
         value=value.Where(d=>AppRuntime.Current.Settings.Value.ShowInWidget(d.Id)).ToArray();
         bool dark=Views.Design.IsDark;
-        string next=$"{dark}|{BackgroundOpacity}|{AppRuntime.Current.Settings.Value.Language}|"+string.Join('|',value.Select(d=>$"{d.Id}:{d.Name}:{d.Percent}:{d.Accent}"));
+        bool minimized=AppRuntime.Current.Settings.Value.WidgetMode=="Minimized" && value.Count>0;
+        bool vertical=AppRuntime.Current.Settings.Value.WidgetOrientation=="Vertical";
+        string next=$"{dark}|{BackgroundOpacity}|{minimized}|{vertical}|{readings.Count}|{AppRuntime.Current.Settings.Value.Language}|"+string.Join('|',value.Select(d=>$"{d.Id}:{d.Name}:{d.Percent}:{d.Accent}"));
         if(fingerprint==next)return;
         dpi=GetDpiForWindow(handle);double scale=dpi/96d;
         var old=Bounds;
         var area=DisplayArea.GetFromRect(new(old.X,old.Y,old.Width,old.Height),DisplayAreaFallback.Nearest).WorkArea;
-        int width=(int)Math.Ceiling(280*scale),height=Math.Min(area.Height-16,(int)Math.Ceiling((10+Math.Max(1,value.Count)*38)*scale));
+        int columns=vertical?1:Math.Min(4,Math.Max(1,value.Count));
+        int width=(int)Math.Ceiling((minimized?12+columns*84:280)*scale);
+        int height=Math.Min(area.Height-16,(int)Math.Ceiling((minimized?12+((value.Count+columns-1)/columns)*32:10+Math.Max(1,value.Count)*38)*scale));
         height=Math.Max(40,height);
         // Rasterize text at four times the target density, then reduce with a
         // premultiplied-alpha filter. ClearType is unsuitable on transparent pixels.
@@ -99,6 +103,9 @@ internal sealed class BatteryWidget : IDisposable
             using var panel=Rounded(width-1,height-1,(float)(10*scale));
             using var fill=new SolidBrush(Color.FromArgb(BackgroundOpacity,ColorTranslator.FromHtml(dark?"#172232":"#F5F8FC")));
             g.FillPath(fill,panel);g.CompositingMode=CompositingMode.SourceOver;g.TextRenderingHint=TextRenderingHint.AntiAlias;
+            if(minimized)DrawMinimized(g,value,scale,dark,columns);
+            else
+            {
             using var nameFont=new Font("Segoe UI",(float)(12.5*scale),FontStyle.Regular,GraphicsUnit.Pixel);
             using var chargeFont=new Font("Segoe UI",(float)(18*scale),FontStyle.Bold,GraphicsUnit.Pixel);
             using var text=new SolidBrush(ColorTranslator.FromHtml(dark?"#F3F6FA":"#182435"));
@@ -117,6 +124,7 @@ internal sealed class BatteryWidget : IDisposable
                 var bar=new RectangleF((float)(10*scale),top+(float)(28*scale),width-(float)(20*scale),(float)(2.5*scale));
                 g.FillRectangle(track,bar);bar.Width*=Math.Clamp(device.Percent??0,0,100)/100f;g.FillRectangle(color,bar);
             }
+            }
         }
         var bitmap=new Bitmap(width,height,PixelFormat.Format32bppPArgb);
         using(var output=Graphics.FromImage(bitmap))
@@ -128,6 +136,30 @@ internal sealed class BatteryWidget : IDisposable
         }
         try { Present(bitmap); } catch { bitmap.Dispose();throw; }
         surface?.Dispose();surface=bitmap;DeviceCount=value.Count;fingerprint=next;KeepOnDisplay(area);
+    }
+    private static void DrawMinimized(Graphics g,IReadOnlyList<DeviceReading> devices,double scale,bool dark,int columns)
+    {
+        using var symbolFont=new Font(Views.Design.IconFont,(float)(18*scale),FontStyle.Regular,GraphicsUnit.Pixel);
+        using var percentFont=new Font("Segoe UI",(float)(12*scale),FontStyle.Bold,GraphicsUnit.Pixel);
+        using var text=new SolidBrush(ColorTranslator.FromHtml(dark?"#F3F6FA":"#182435"));
+        using var track=new SolidBrush(ColorTranslator.FromHtml(dark?"#243449":"#E3EBF4"));
+        using var centered=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap };
+        for(int i=0;i<devices.Count;i++)
+        {
+            var device=devices[i];float x=(float)((6+i%columns*84)*scale),y=(float)((6+i/columns*32)*scale);
+            var accent=ColorTranslator.FromHtml(device.Accent);
+            if(!dark)accent=Color.FromArgb((int)(accent.R*.62),(int)(accent.G*.62),(int)(accent.B*.62));
+            using var color=new SolidBrush(accent);
+            using var tint=new SolidBrush(Color.FromArgb(75,accent));
+            using var outline=new Pen(accent,(float)(1.5*scale));
+            g.DrawString(Views.Design.Glyph(device.Kind),symbolFont,color,new RectangleF(x,y+(float)(3*scale),(float)(22*scale),(float)(24*scale)),centered);
+            var battery=new RectangleF(x+(float)(27*scale),y+(float)(4*scale),(float)(46*scale),(float)(22*scale));
+            g.FillRectangle(track,battery);
+            var level=battery;level.Width*=Math.Clamp(device.Percent??0,0,100)/100f;g.FillRectangle(tint,level);
+            g.DrawRectangle(outline,battery.X,battery.Y,battery.Width,battery.Height);
+            g.FillRectangle(color,battery.Right,battery.Y+(float)(7*scale),(float)(2.5*scale),(float)(8*scale));
+            g.DrawString(device.Percent is int percent?$"{percent}%":"—",percentFont,text,battery,centered);
+        }
     }
     private void Present(Bitmap bitmap)
     {

@@ -12,6 +12,11 @@ try{
     $images=@($names | Where-Object {$_ -match '(?i)^app/.*\.(png|ico|jpg|svg)$'})
     if($images.Count -gt 5 -or ($names -notcontains 'app/brand.png' -and $names -notcontains 'app/brand.scale-100.png') -or $names -notcontains 'app/app-icon.ico'){throw 'Unexpected image assets; keep at most five actually used images'}
     if($names -contains 'app/hostfxr.dll' -or $names -contains 'app/coreclr.dll'){throw 'Shared runtime unexpectedly bundled'}
+    $configEntry=$archive.Entries | Where-Object {$_.FullName.Replace('\','/') -eq 'app/PeripheralBatteryMonitor.Desktop.runtimeconfig.json'} | Select-Object -First 1
+    if($null -eq $configEntry){throw 'Runtime configuration missing'}
+    $reader=New-Object IO.StreamReader($configEntry.Open())
+    try{$config=$reader.ReadToEnd() | ConvertFrom-Json}finally{$reader.Dispose()}
+    if($config.runtimeOptions.configProperties.'System.GC.ConserveMemory' -ne 9 -or $config.runtimeOptions.configProperties.'System.GC.Server' -ne $false){throw 'Memory-conserving workstation configuration missing'}
     if(($archive.Entries | Measure-Object Length -Sum).Sum -gt 100MB){throw 'Package exceeds legacy archive limit'}
 }finally{$archive.Dispose()}
 & (Join-Path $PSScriptRoot 'Test-Installer.ps1') -PackageZip $zip

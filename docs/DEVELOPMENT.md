@@ -14,6 +14,14 @@ dotnet build ./src/Desktop/PeripheralBatteryMonitor.Desktop.csproj
 
 `src/Desktop` is the MAUI application: Views contains native pages, Services handles device state/settings/releases, and Platforms/Windows contains native notification icons. `src/Core` and `src/Devices` hold shared device providers and packet parsers. `src/UI/TrayBatteryPainter.cs` draws notification icons at their native pixel size. `src/App` retains the 0.4.x interface and the compatibility entry script, which starts the MAUI executable in a complete package. `src/Launcher` is the small .NET Framework compatibility launcher. `installer` handles per-user setup, upgrade and rollback. `assets/branding` holds the original application icon. `.github/workflows` validates and publishes tagged releases.
 
+## Memory verification
+
+Run `dotnet run --project tests/DiscoveryMemory/DiscoveryMemory.csproj -c Release` to measure managed allocation per Windows inventory scan after warm-up. Counts depend on the local hardware; compare on the same machine with the same connected devices.
+
+Use `./scripts/Measure-Memory.ps1 -ProcessId <desktop-process-id> -Seconds 30` for external process measurements. Compare a fresh background launch after the same warm-up, with the same widget mode, visible devices and theme. Private working set, private committed bytes and allocation rate are different metrics; attaching diagnostic tools can itself increase process memory. A zero last-collection counter before the first GC is not evidence of zero heap usage.
+
+The desktop uses workstation GC with `System.GC.ConserveMemory=9`; see Microsoft's [GC configuration documentation](https://learn.microsoft.com/dotnet/core/runtime-config/garbage-collector#conserve-memory). Do not use forced periodic collections, working-set trimming or arbitrary heap limits to make Task Manager numbers smaller. Keep live device monitoring enabled during measurements.
+
 ## New providers
 
 Implement Start, Snapshot, Refresh and Dispose. Keep I/O in a background worker, publish locked snapshots, restrict discovery to verified IDs/collections, and parse only known battery reports. Add a device card and tray segment. Never read keyboard keystroke collections or send one vendor's commands to another device. Add malformed-report tests and live connection/refresh tests. Document which physical battery changes have actually been observed.
@@ -33,4 +41,4 @@ Application settings are stored in ``%LOCALAPPDATA%\PeripheralBatteryMonitor\set
 
 Startup checks use GitHub's latest stable release API. Manual update/rollback selection lists up to 100 releases, filters draft/prerelease/incomplete packages, requires exactly named ZIP/checksum assets under this repository, verifies the ZIP hash and rejects path traversal or oversized archive entries. HTTPS and checksums protect transport/integrity; assets are not code-signed and the checksum is not an independent publisher signature.
 
-Installed versions live under `%LOCALAPPDATA%\Programs\PeripheralBatteryMonitor\versions\X.Y.Z`. A validated current.txt pointer selects the active version. New files are staged before switching the pointer. Old version folders are retained, and settings live separately under `%LOCALAPPDATA%\PeripheralBatteryMonitor`. Installer restarts use a named exit event and the existing instance mutex rather than terminating arbitrary processes. Installer/update failures before activation leave the previous pointer intact; automatic health-check rollback is not implemented.
+Installed versions live under `%LOCALAPPDATA%\Programs\PeripheralBatteryMonitor\versions\X.Y.Z`. A validated current.txt pointer selects the active version. New files are staged before switching the pointer. The current and previous version folders are retained; older owned versions are removed, and settings live separately under `%LOCALAPPDATA%\PeripheralBatteryMonitor`. Installer restarts use a named exit event and the existing instance mutex rather than terminating arbitrary processes. Installer/update failures before activation leave the previous pointer intact; automatic health-check rollback is not implemented.

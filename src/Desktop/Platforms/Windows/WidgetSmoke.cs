@@ -16,6 +16,10 @@ internal static class WidgetSmoke
         int originalOpacity=AppRuntime.Current.Settings.Value.WidgetOpacity;
         var preferences=AppRuntime.Current.Settings.Value;
         var originalHidden=preferences.WidgetHiddenDevices;
+        var originalMode=preferences.WidgetMode;
+        var originalOrientation=preferences.WidgetOrientation;
+        preferences.WidgetOrientation="Horizontal";
+        preferences.WidgetMode="Standard";
         preferences.WidgetHiddenDevices=[];
         var background=new Microsoft.UI.Xaml.Window { Title="PBM widget transparency test" };
         var grid=new Microsoft.UI.Xaml.Controls.Grid();
@@ -43,6 +47,17 @@ internal static class WidgetSmoke
             if(widget.DeviceCount!=0)throw new InvalidOperationException("Hiding all widget devices failed");
             preferences.WidgetHiddenDevices=[];widget.Update(readings);
             if(widget.DeviceCount!=3)throw new InvalidOperationException("Restoring widget devices failed");
+            int standardHeight=widget.Bounds.Height;
+            preferences.WidgetMode="Minimized";widget.Update(readings);
+            if(widget.DeviceCount!=3 || widget.Bounds.Height>=standardHeight)throw new InvalidOperationException("Minimized mode did not compact the device rows");
+            using(var minimized=widget.RenderPreview())minimized.Save(Path.Combine(folder,"minimized-widget.png"),ImageFormat.Png);
+            var horizontalSize=widget.Bounds.Size;
+            preferences.WidgetOrientation="Vertical";widget.Update(readings);
+            if(widget.Bounds.Width>=horizontalSize.Width || widget.Bounds.Height<=horizontalSize.Height)throw new InvalidOperationException("Vertical Minimized layout did not stack devices");
+            using(var vertical=widget.RenderPreview())vertical.Save(Path.Combine(folder,"minimized-vertical-widget.png"),ImageFormat.Png);
+            widget.Update(readings.Take(1).ToArray());
+            if(widget.DeviceCount!=1 || widget.Bounds.Width>=200)throw new InvalidOperationException("Minimized widget did not resize for one device");
+            preferences.WidgetMode="Standard";preferences.WidgetOrientation="Horizontal";widget.Update(readings);
             widget.SetMoving(true);
             if(widget.ClickThrough || !widget.IsMoving)throw new InvalidOperationException("Positioning must enable dragging");
             widget.CheckInteractionFocus(false);
@@ -60,9 +75,15 @@ internal static class WidgetSmoke
             foreach(var theme in new[]{AppTheme.Light,AppTheme.Dark})
             {
                 Application.Current!.UserAppTheme=theme;
+                foreach(string mode in new[]{"Standard","Minimized","Vertical"})
+                {
+                preferences.WidgetMode=mode=="Standard"?"Standard":"Minimized";
+                preferences.WidgetOrientation=mode=="Vertical"?"Vertical":"Horizontal";
                 foreach(int opacity in new[]{0,20,50,100})
                 {
-                    AppRuntime.Current.Settings.Value.WidgetOpacity=opacity;widget.Update(readings);widget.Raise();await Task.Delay(250);
+                    AppRuntime.Current.Settings.Value.WidgetOpacity=opacity;widget.Update(readings);
+                    var current=widget.Bounds.Size;background.AppWindow.MoveAndResize(new(area.X+40,area.Y+40,current.Width+80,current.Height+80));
+                    widget.MoveTo(area.X+80,area.Y+80);widget.Raise();await Task.Delay(250);
                     using var preview=widget.RenderPreview();
                     if(preview.GetPixel(0,0).A!=0)throw new InvalidOperationException("Widget corners must be transparent without a frame");
                     using var capture=new Bitmap(widget.Bounds.Width,widget.Bounds.Height,PixelFormat.Format32bppArgb);
@@ -72,17 +93,19 @@ internal static class WidgetSmoke
                     AssertBlend(capture.GetPixel(capture.Width-6,capture.Height/2),right,tint,opacity);
                     if(opacity==50)
                     {
-                        preview.Save(Path.Combine(folder,theme.ToString().ToLowerInvariant()+"-widget.png"),ImageFormat.Png);
-                        capture.Save(Path.Combine(folder,theme.ToString().ToLowerInvariant()+"-widget-desktop.png"),ImageFormat.Png);
+                        string prefix=theme.ToString().ToLowerInvariant()+(mode=="Standard"?"":mode=="Vertical"?"-minimized-vertical":"-minimized");
+                        preview.Save(Path.Combine(folder,prefix+"-widget.png"),ImageFormat.Png);
+                        capture.Save(Path.Combine(folder,prefix+"-widget-desktop.png"),ImageFormat.Png);
                         int opaque=0;
                         for(int y=0;y<preview.Height;y++)for(int x=0;x<preview.Width;x++)if(preview.GetPixel(x,y).A==255)opaque++;
                         if(opaque<100)throw new InvalidOperationException("Widget text and bars must stay opaque");
                     }
                 }
+                }
             }
             File.WriteAllText(Path.Combine(folder,"widget-result.txt"),"PASS: real desktop composition at 0%, 20%, 50%, 100% background opacity in both themes; no window border; opaque content; focus guard; independent visibility");
         }
-        finally { background.Close();preferences.WidgetOpacity=originalOpacity;preferences.WidgetHiddenDevices=originalHidden; }
+        finally { background.Close();preferences.WidgetOpacity=originalOpacity;preferences.WidgetHiddenDevices=originalHidden;preferences.WidgetMode=originalMode;preferences.WidgetOrientation=originalOrientation; }
     }
     private static void AssertBlend(Color actual,Color backdrop,Color tint,int opacity)
     {

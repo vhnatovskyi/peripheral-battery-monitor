@@ -1,3 +1,11 @@
+## v0.5.12
+
+- Add the optional Minimized widget: device-type symbols replace names, and each compact battery contains its charge percentage. Choose a horizontal strip (up to four devices per row) or a vertical stack. Resize when devices appear or disappear, and retain independent visibility, colors, background transparency and click-through protection.
+- Reuse the device-instance string buffer during Windows device enumeration and use a bounded, per-thread reusable property buffer instead of allocating 4 KB for every property read. On the development device inventory this reduces managed allocation per scan from approximately 3.14 MB to 113 KB.
+- Publish Bluetooth battery and connection updates against the cached native inventory, without requesting a second full hardware scan. Keep the regular discovery interval and explicit Refresh action.
+- Copy native readings before merging endpoint data, so Bluetooth updates cannot mutate an earlier inventory snapshot.
+- Use workstation garbage collection with the documented memory-conservation mode. Keep monitoring, notifications, device visibility and widget rendering active; do not force periodic collections or trim the process working set.
+
 ## v0.5.11
 
 - Align compact native switches with their labels and device column headings. Use consistent slider colors and whole-percent steps for mouse and keyboard adjustments.

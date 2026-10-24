@@ -14,6 +14,8 @@ public sealed class MonitorSettings
     public int LowBatteryThreshold { get; set; } = 20;
     public bool CheckForUpdates { get; set; } = true;
     public bool WidgetEnabled { get; set; }
+    public string WidgetMode { get; set; } = "Standard";
+    public string WidgetOrientation { get; set; } = "Horizontal";
     public int WidgetOpacity { get; set; } = 100;
     public string[] WidgetHiddenDevices { get; set; } = [];
     public string[] TrayHiddenDevices { get; set; } = [];
@@ -42,7 +44,7 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.11";
+    public string Version { get; } = "0.5.12";
     internal void Apply(MonitorSettings settings) => Value=settings.Copy();
     public SettingsStore()
     {
@@ -54,6 +56,8 @@ public sealed class SettingsStore
         if(Value.TrayStyle is not ("Battery" or "Percent")) Value.TrayStyle="Battery";
         Value.LowBatteryThreshold=Math.Clamp(Value.LowBatteryThreshold,5,50);
         Value.WidgetOpacity=Math.Clamp(Value.WidgetOpacity,0,100);
+        if(Value.WidgetMode is not ("Standard" or "Minimized"))Value.WidgetMode="Standard";
+        if(Value.WidgetOrientation is not ("Horizontal" or "Vertical"))Value.WidgetOrientation="Horizontal";
         Value.WidgetHiddenDevices=Value.WidgetHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
         Value.TrayHiddenDevices=Value.TrayHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
     }

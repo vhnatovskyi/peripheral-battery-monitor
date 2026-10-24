@@ -1,4 +1,4 @@
-$ErrorActionPreference='Stop'
+﻿$ErrorActionPreference='Stop'
 Add-Type -Path @(Get-ChildItem (Join-Path $PSScriptRoot '../src/Core/*.cs'),(Join-Path $PSScriptRoot '../src/Devices/*.cs') | ForEach-Object FullName)
 function Assert($condition,$message){if(-not $condition){throw $message}}
 Assert ([Aj139Battery.WindowsBatteryProtocol]::ParsePercent([byte[]](0),3) -eq 0) 'Zero percent rejected'
@@ -28,3 +28,27 @@ $ble.Connected=$false
 $merged=[Aj139Battery.WindowsDeviceMonitor]::MergeEndpoints(@(),@($classic,$ble))
 Assert ($merged[0].Connected -eq $false -and $null -eq $merged[0].Percent) 'Disconnected headset retained current battery'
 'Dual-mode Bluetooth connection regression tests passed'
+
+# A Bluetooth update must be visible without starting a hardware rescan,
+# and endpoint merging must not modify the cached native inventory.
+$ble.Connected=$true;$ble.Percent=83
+$native=[Aj139Battery.WindowsDeviceMonitor]::MergeEndpoints(@(),@($ble))
+$ble.Connected=$false
+$disconnected=[Aj139Battery.WindowsDeviceMonitor]::MergeEndpoints($native,@($ble))
+Assert ($native[0].Connected -eq $true -and $native[0].Percent -eq 83) 'Bluetooth merge mutated the native snapshot'
+Assert ($disconnected[0].Connected -eq $false -and $null -eq $disconnected[0].Percent) 'Cached disconnect update lost'
+$monitor=New-Object Aj139Battery.WindowsDeviceMonitor
+try {
+    $ble.Connected=$true;$ble.Percent=83
+    $monitor.SetEndpoints(@($ble))
+    Assert ($monitor.Snapshot()[0].Percent -eq 83) 'Bluetooth update requires a hardware rescan'
+    $version=$monitor.Version
+    $ble.Percent=82;$monitor.SetEndpoints(@($ble))
+    Assert ($monitor.Snapshot()[0].Percent -eq 82 -and $monitor.Version -gt $version) 'Cached battery change did not publish'
+    $version=$monitor.Version
+    $ble.Address='001122334455';$monitor.SetEndpoints(@($ble))
+    Assert ($monitor.Version -gt $version -and $monitor.Snapshot()[0].BluetoothAddress -eq '001122334455') 'Bluetooth address update did not publish'
+    $ble.Connected=$false;$monitor.SetEndpoints(@($ble))
+    Assert ($monitor.Snapshot()[0].Connected -eq $false -and $null -eq $monitor.Snapshot()[0].Percent) 'Cached disconnection retained charge'
+} finally { $monitor.Dispose() }
+'Cached Bluetooth updates and immutable inventory regression tests passed'

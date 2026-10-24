@@ -51,6 +51,14 @@ internal static class UiSmoke
                             throw new InvalidOperationException("Switch retains blank native label space");
                     if(elements.OfType<Button>().Any(b=>b.Text is "Зберегти зміни" or "Save changes"))throw new InvalidOperationException("Manual Save button remains");
                     var preferences=Services.AppRuntime.Current.Settings.Value.Copy();
+                    var widgetMode=elements.OfType<Picker>().Single(p=>p.AutomationId=="WidgetMode");
+                    int previousMode=widgetMode.SelectedIndex;widgetMode.SelectedIndex=1;
+                    if(Services.AppRuntime.Current.Settings.Value.WidgetMode!="Minimized")throw new InvalidOperationException("Minimized mode did not apply immediately");
+                    var orientation=elements.OfType<Picker>().Single(p=>p.AutomationId=="WidgetOrientation");
+                    int previousOrientation=orientation.SelectedIndex;orientation.SelectedIndex=1;
+                    if(Services.AppRuntime.Current.Settings.Value.WidgetOrientation!="Vertical")throw new InvalidOperationException("Widget orientation did not apply immediately");
+                    orientation.SelectedIndex=previousOrientation;
+                    widgetMode.SelectedIndex=previousMode;
                     var widget=elements.OfType<Switch>().Single(s=>s.AutomationId=="WidgetDevice_demo-mouse");
                     bool before=widget.IsToggled;widget.IsToggled=!before;
                     if(Services.AppRuntime.Current.Settings.Value.ShowInWidget("demo-mouse")==before)throw new InvalidOperationException("Widget setting did not apply immediately");
