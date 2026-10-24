@@ -11,8 +11,8 @@
     <ApplicationTitle>Peripheral Battery Monitor</ApplicationTitle>
     <ApplicationIcon>../../assets/branding/app-icon.ico</ApplicationIcon>
     <ApplicationId>io.github.vhnatovskyi.peripheralbatterymonitor</ApplicationId>
-    <ApplicationDisplayVersion>0.5.6</ApplicationDisplayVersion>
-    <ApplicationVersion>56</ApplicationVersion>
+    <ApplicationDisplayVersion>0.5.7</ApplicationDisplayVersion>
+    <ApplicationVersion>57</ApplicationVersion>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <SelfContained>false</SelfContained>

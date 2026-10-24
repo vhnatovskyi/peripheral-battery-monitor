@@ -1,3 +1,8 @@
+## v0.5.7
+
+- Smooth widget text and charge numbers with four-times-density text rendering and alpha-safe reduction to the actual screen pixel size.
+- Retain desktop background transparency, fully opaque text interiors, rounded corners and the frame-free window from v0.5.6.
+
 ## v0.5.6
 
 - Fix the widget appearing black instead of transparent on the desktop by presenting per-pixel alpha through a dedicated native layered popup.

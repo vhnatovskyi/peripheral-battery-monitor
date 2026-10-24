@@ -86,23 +86,28 @@ internal sealed class BatteryWidget : IDisposable
         var old=Bounds;
         var area=DisplayArea.GetFromRect(new(old.X,old.Y,old.Width,old.Height),DisplayAreaFallback.Nearest).WorkArea;
         int width=(int)Math.Ceiling(280*scale),height=Math.Min(area.Height-16,(int)Math.Ceiling((10+Math.Max(1,value.Count)*38)*scale));
-        var bitmap=new Bitmap(width,Math.Max(40,height),PixelFormat.Format32bppPArgb);
-        using(var g=Graphics.FromImage(bitmap))
+        height=Math.Max(40,height);
+        // Rasterize text at four times the target density, then reduce with a
+        // premultiplied-alpha filter. ClearType is unsuitable on transparent pixels.
+        const int sampling=4;
+        using var highResolution=new Bitmap(width*sampling,height*sampling,PixelFormat.Format32bppPArgb);
+        using(var g=Graphics.FromImage(highResolution))
         {
+            g.ScaleTransform(sampling,sampling);
             g.Clear(Color.Transparent);g.SmoothingMode=SmoothingMode.AntiAlias;g.CompositingMode=CompositingMode.SourceCopy;
-            using var panel=Rounded(width-1,bitmap.Height-1,(float)(10*scale));
+            using var panel=Rounded(width-1,height-1,(float)(10*scale));
             using var fill=new SolidBrush(Color.FromArgb(BackgroundOpacity,ColorTranslator.FromHtml(dark?"#172232":"#F5F8FC")));
-            g.FillPath(fill,panel);g.CompositingMode=CompositingMode.SourceOver;g.TextRenderingHint=TextRenderingHint.AntiAliasGridFit;
-            using var nameFont=new Font("Segoe UI",(float)(12*scale),FontStyle.Regular,GraphicsUnit.Pixel);
+            g.FillPath(fill,panel);g.CompositingMode=CompositingMode.SourceOver;g.TextRenderingHint=TextRenderingHint.AntiAlias;
+            using var nameFont=new Font("Segoe UI",(float)(12.5*scale),FontStyle.Regular,GraphicsUnit.Pixel);
             using var chargeFont=new Font("Segoe UI",(float)(18*scale),FontStyle.Bold,GraphicsUnit.Pixel);
             using var text=new SolidBrush(ColorTranslator.FromHtml(dark?"#F3F6FA":"#182435"));
             using var track=new SolidBrush(ColorTranslator.FromHtml(dark?"#34465D":"#DCE5F0"));
             using var names=new StringFormat { Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap,LineAlignment=StringAlignment.Center };
             using var charges=new StringFormat { Alignment=StringAlignment.Far,LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap };
-            if(value.Count==0)g.DrawString(AppRuntime.Current.Text("Немає підключених пристроїв","No connected devices"),nameFont,text,new RectangleF((float)(10*scale),0,width-(float)(20*scale),bitmap.Height),names);
+            if(value.Count==0)g.DrawString(AppRuntime.Current.Text("Немає підключених пристроїв","No connected devices"),nameFont,text,new RectangleF((float)(10*scale),0,width-(float)(20*scale),height),names);
             for(int i=0;i<value.Count;i++)
             {
-                float top=(float)((5+i*38)*scale);if(top+29*scale>bitmap.Height)break;
+                float top=(float)((5+i*38)*scale);if(top+29*scale>height)break;
                 var device=value[i];var accent=ColorTranslator.FromHtml(device.Accent);
                 using var color=new SolidBrush(accent);
                 using var charge=new SolidBrush(dark?accent:Color.FromArgb((int)(accent.R*0.55),(int)(accent.G*0.55),(int)(accent.B*0.55)));
@@ -111,6 +116,14 @@ internal sealed class BatteryWidget : IDisposable
                 var bar=new RectangleF((float)(10*scale),top+(float)(28*scale),width-(float)(20*scale),(float)(2.5*scale));
                 g.FillRectangle(track,bar);bar.Width*=Math.Clamp(device.Percent??0,0,100)/100f;g.FillRectangle(color,bar);
             }
+        }
+        var bitmap=new Bitmap(width,height,PixelFormat.Format32bppPArgb);
+        using(var output=Graphics.FromImage(bitmap))
+        using(var edges=new ImageAttributes())
+        {
+            output.CompositingMode=CompositingMode.SourceCopy;output.InterpolationMode=InterpolationMode.HighQualityBicubic;output.PixelOffsetMode=PixelOffsetMode.HighQuality;
+            edges.SetWrapMode(WrapMode.TileFlipXY);
+            output.DrawImage(highResolution,new Rectangle(0,0,width,height),0,0,highResolution.Width,highResolution.Height,GraphicsUnit.Pixel,edges);
         }
         try { Present(bitmap); } catch { bitmap.Dispose();throw; }
         surface?.Dispose();surface=bitmap;DeviceCount=value.Count;fingerprint=next;KeepOnDisplay(area);
