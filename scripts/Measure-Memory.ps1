@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference='Stop'
 $process=[Diagnostics.Process]::GetProcessById($ProcessId)
 try {
-    if($process.ProcessName -ne 'PeripheralBatteryMonitor.Desktop'){throw 'Select the Peripheral Battery Monitor desktop process'}
+    if($process.ProcessName -notin @('PeripheralBatteryMonitor.Desktop','PeripheralBatteryMonitor.Agent')){throw 'Select the Peripheral Battery Monitor agent or desktop process'}
     $samples=@()
     for($i=0;$i -lt $Seconds;$i++){
         $process.Refresh()
@@ -19,6 +19,7 @@ try {
     }
     $report=[pscustomobject]@{
         Version=$process.MainModule.FileVersionInfo.ProductVersion
+        Process=$process.ProcessName
         Samples=$samples.Count
         AveragePrivateWorkingSetMiB=[Math]::Round(($samples | Measure-Object PrivateWorkingSet -Average).Average/1MB,2)
         AveragePrivateBytesMiB=[Math]::Round(($samples | Measure-Object PrivateBytes -Average).Average/1MB,2)

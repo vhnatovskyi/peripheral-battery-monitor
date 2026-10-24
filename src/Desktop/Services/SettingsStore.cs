@@ -3,31 +3,10 @@ using Microsoft.Win32;
 
 namespace PeripheralBatteryMonitor.Desktop.Services;
 
-public sealed class MonitorSettings
-{
-    public string Language { get; set; } = "uk";
-    public string Theme { get; set; } = "System";
-    public string TrayMode { get; set; } = "Combined";
-    public string TrayStyle { get; set; } = "Battery";
-    public bool AutoStart { get; set; }
-    public bool LowBatteryAlerts { get; set; } = true;
-    public int LowBatteryThreshold { get; set; } = 20;
-    public bool CheckForUpdates { get; set; } = true;
-    public bool WidgetEnabled { get; set; }
-    public string WidgetMode { get; set; } = "Standard";
-    public string WidgetOrientation { get; set; } = "Horizontal";
-    public int WidgetOpacity { get; set; } = 100;
-    public string[] WidgetHiddenDevices { get; set; } = [];
-    public string[] TrayHiddenDevices { get; set; } = [];
-    public bool ShowInWidget(string deviceId) => !WidgetHiddenDevices.Contains(deviceId,StringComparer.OrdinalIgnoreCase);
-    public bool ShowInTray(string deviceId) => !TrayHiddenDevices.Contains(deviceId,StringComparer.OrdinalIgnoreCase);
-    public MonitorSettings Copy()
-    { var copy=(MonitorSettings)MemberwiseClone();copy.WidgetHiddenDevices=[..WidgetHiddenDevices];copy.TrayHiddenDevices=[..TrayHiddenDevices];return copy; }
-}
-
 public sealed class SettingsStore
 {
-    public static readonly string StateRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PeripheralBatteryMonitor");
+    public static readonly string StateRoot = (Environment.GetCommandLineArgs().Contains("--agent-self-test") || Environment.GetCommandLineArgs().Contains("--agent-integration-test")) && Environment.GetEnvironmentVariable("PBM_AGENT_TEST_ROOT") is string testRoot
+        ? Path.GetFullPath(testRoot) : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PeripheralBatteryMonitor");
     public static string PackageRoot => Directory.GetParent(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar))!.FullName;
     public static string? InstalledRoot
     {
@@ -44,7 +23,7 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.12";
+    public string Version { get; } = "0.6.0";
     internal void Apply(MonitorSettings settings) => Value=settings.Copy();
     public SettingsStore()
     {
@@ -61,14 +40,17 @@ public sealed class SettingsStore
         Value.WidgetHiddenDevices=Value.WidgetHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
         Value.TrayHiddenDevices=Value.TrayHiddenDevices?.Where(id=>!string.IsNullOrWhiteSpace(id)).Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
     }
-    public void Save(MonitorSettings settings)
+    public void Save(MonitorSettings settings,bool integration=true)
     {
         Directory.CreateDirectory(StateRoot);
         string pending=Path.Combine(StateRoot,"settings.pending");
         File.WriteAllText(pending,JsonSerializer.Serialize(settings,AppJsonContext.Default.MonitorSettings));
-        using var run=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
-        if(settings.AutoStart) run.SetValue("PeripheralBatteryMonitor",$"\"{LauncherPath}\" --background");
-        else run.DeleteValue("PeripheralBatteryMonitor",false);
+        if(integration)
+        {
+            using var run=Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+            if(settings.AutoStart) run.SetValue("PeripheralBatteryMonitor",$"\"{LauncherPath}\" --background");
+            else run.DeleteValue("PeripheralBatteryMonitor",false);
+        }
         File.Move(pending,Path.Combine(StateRoot,"settings.json"),true);
         Value=settings.Copy();
     }

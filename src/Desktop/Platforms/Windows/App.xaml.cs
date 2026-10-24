@@ -16,6 +16,7 @@ public partial class App : MauiWinUIApplication
 	/// </summary>
 	public App()
 	{
+		if(global::PeripheralBatteryMonitor.Desktop.Services.AgentConnection.ForwardToAgent())Environment.Exit(0);
 		if(!Environment.GetCommandLineArgs().Contains("--ui-smoke") && !SingleInstance.TryClaim())Environment.Exit(0);
 		this.InitializeComponent();
 	}

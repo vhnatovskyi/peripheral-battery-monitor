@@ -11,8 +11,10 @@ if((-not $SmokeTest) -and (Test-Path -LiteralPath $desktop)){
     $dotnetRoot=Initialize-PbmRuntime
     $env:DOTNET_ROOT_X64=$dotnetRoot
     $env:DOTNET_ROOT=$dotnetRoot
+    $agent=Join-Path ([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($desktop))) 'PeripheralBatteryMonitor.Agent.exe'
+    if(Test-Path -LiteralPath $agent){$desktop=$agent}
     $start=@{FilePath=[IO.Path]::GetFullPath($desktop);WorkingDirectory=[IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($desktop));WindowStyle='Hidden'}
-    if(-not $ShowWindow){$start.ArgumentList='--background'}
+    if(-not $ShowWindow){$start.ArgumentList='--background'}elseif($desktop -eq $agent){$start.ArgumentList='--show-ui'}
     Start-Process @start
     exit
 }

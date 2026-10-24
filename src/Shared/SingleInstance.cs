@@ -7,7 +7,9 @@ namespace PeripheralBatteryMonitor
     // installations in other folders and older compatible versions.
     internal static class SingleInstance
     {
-        internal const string MutexName = @"Local\AJ139BatteryIndicator";
+        private static readonly bool ui=Array.IndexOf(Environment.GetCommandLineArgs(),"--agent-client")>=0;
+        internal static string UiPrefix { get { return @"Local\PeripheralBatteryMonitor.UI"+(Array.IndexOf(Environment.GetCommandLineArgs(),"--agent-integration-test")>=0?".Test."+Environment.GetEnvironmentVariable("PBM_AGENT_TEST_ID"):""); } }
+        internal static string MutexName { get { return ui ? UiPrefix : @"Local\AJ139BatteryIndicator"; } }
         private static Mutex owner;
         internal static bool TryClaim()
         {
@@ -38,7 +40,7 @@ namespace PeripheralBatteryMonitor
             // created its activation event. Wait briefly for that event.
             for(int attempt=0;attempt<30;attempt++)
             {
-                try { using(var show=EventWaitHandle.OpenExisting(@"Local\PeripheralBatteryMonitor.Show"))show.Set();return; }
+                try { using(var show=EventWaitHandle.OpenExisting(ui ? UiPrefix+".Show" : @"Local\PeripheralBatteryMonitor.Show"))show.Set();return; }
                 catch(WaitHandleCannotBeOpenedException) { Thread.Sleep(100); }
             }
         }

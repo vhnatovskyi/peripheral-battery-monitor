@@ -16,6 +16,7 @@ $metadata = Get-Content -Raw -LiteralPath (Join-Path $package 'version.json') | 
 $version = [string]$metadata.version
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw 'Invalid package version.' }
 if($metadata.PSObject.Properties['interface'] -and $metadata.interface -eq 'maui' -and -not(Test-Path -LiteralPath (Join-Path $package 'app/PeripheralBatteryMonitor.Desktop.exe') -PathType Leaf)){throw 'Native MAUI application files are missing.'}
+if($metadata.PSObject.Properties['background'] -and $metadata.background -eq 'agent' -and -not(Test-Path -LiteralPath (Join-Path $package 'app/PeripheralBatteryMonitor.Agent.exe') -PathType Leaf)){throw 'Background agent files are missing.'}
 foreach ($required in @('PeripheralBatteryMonitor.exe','src\App\Tray.ps1','installer\Uninstall.ps1')) {
     if (-not (Test-Path -LiteralPath (Join-Path $package $required) -PathType Leaf)) { throw "Package missing $required" }
 }
@@ -37,13 +38,17 @@ if (-not (Test-Path -LiteralPath $destination)) {
 # Ask the existing application to close cleanly; never kill unrelated PowerShell processes.
 $activeInstall=[PeripheralBatteryMonitor.Installation.InstallPaths]::PreferredRoot()
 $isolatedTest=$NoIntegration -and $NoLaunch -and ($install -ne $activeInstall)
-if(-not $isolatedTest){try { $exitEvent=[Threading.EventWaitHandle]::OpenExisting('Local\PeripheralBatteryMonitor.Exit'); $exitEvent.Set() | Out-Null; $exitEvent.Dispose() } catch [Threading.WaitHandleCannotBeOpenedException] { }}
+if(-not $isolatedTest){foreach($eventName in @('Local\PeripheralBatteryMonitor.UI.Exit','Local\PeripheralBatteryMonitor.Exit')){try { $exitEvent=[Threading.EventWaitHandle]::OpenExisting($eventName); $exitEvent.Set() | Out-Null; $exitEvent.Dispose() } catch [Threading.WaitHandleCannotBeOpenedException] { }}}
 $mutexName=if($isolatedTest){'Local\PeripheralBatteryMonitor.Test.'+[Guid]::NewGuid().ToString('N')}else{'Local\AJ139BatteryIndicator'}
 $instanceMutex = New-Object Threading.Mutex($false, $mutexName)
 try {
     try { $acquired = $instanceMutex.WaitOne(10000) } catch [Threading.AbandonedMutexException] { $acquired = $true }
     if (-not $acquired) { throw 'Please close Peripheral Battery Monitor and run the installer again.' }
     try {
+        if(-not $isolatedTest){
+            $uiMutex=New-Object Threading.Mutex($false,'Local\PeripheralBatteryMonitor.UI')
+            try{try{$uiClosed=$uiMutex.WaitOne(10000)}catch [Threading.AbandonedMutexException]{$uiClosed=$true};if(-not $uiClosed){throw 'Please close the settings window and retry.'};$uiMutex.ReleaseMutex()}finally{$uiMutex.Dispose()}
+        }
         $launcher = Join-Path $install 'PeripheralBatteryMonitor.exe'
         $pendingLauncher=Join-Path $install 'launcher.pending'
         Copy-Item -LiteralPath (Join-Path $destination 'PeripheralBatteryMonitor.exe') -Destination $pendingLauncher -Force

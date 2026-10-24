@@ -1,6 +1,6 @@
 # Peripheral Battery Monitor
 
-A Windows app built with **.NET MAUI** for wireless-device battery status. Native device cards, combined or separate tray indicators, local settings, and verified releases from GitHub. No vendor application or third-party device driver is required.
+A Windows app with a **.NET MAUI** dashboard and a lightweight background monitor for wireless-device battery status. Native device cards, combined or separate tray indicators, local settings, and verified releases from GitHub. No vendor application or third-party device driver is required.
 
 [User guide / Інструкція користувача](https://github.com/vhnatovskyi/peripheral-battery-monitor/wiki)
 
@@ -10,7 +10,7 @@ Download the **Setup EXE** from [the latest release](https://github.com/vhnatovs
 
 For portable use, download and extract the **`win-x64.zip`** release asset and run **PeripheralBatteryMonitor.exe**. Keep the extracted files together. Binaries are unsigned, so Windows may show an unknown-publisher notice.
 
-Requires Windows 10 (build 19041+) or Windows 11 x64. The compact package uses shared **.NET 10 Runtime x64** and **Windows App Runtime 1.8 x64**. Setup and the portable launcher detect these components and offer to install missing ones once, directly from Microsoft. Existing components are reused. The .NET fallback is installed per user. Windows PowerShell 5.1 and the built-in .NET Framework support the compatibility launcher and installer; device monitoring runs in the native application process.
+Requires Windows 10 (build 19041+) or Windows 11 x64. The compact package uses shared **.NET 10 Runtime x64** and **Windows App Runtime 1.8 x64**. Setup and the portable launcher detect these components and offer to install missing ones once, directly from Microsoft. Existing components are reused. The .NET fallback is installed per user. Windows PowerShell 5.1 and the built-in .NET Framework support the compatibility launcher and installer. The background agent uses .NET without loading MAUI or WinUI; the dashboard loads only when opened and exits when closed.
 
 ## Supported devices
 
@@ -39,7 +39,9 @@ Double-click the tray icon to open the dashboard. Separate tray icons use device
 
 Bluetooth cards with a known target address show a centered unplug icon that requests Windows to disconnect that remote address while keeping its pairing. Unsupported/receiver cards hide this action. A driver may reject the request or reconnect automatically; the app offers Windows Bluetooth settings on failure. It does not disable the Bluetooth adapter or forget devices.
 
-Enable the **Always-on-top widget** in Settings and save to show device battery levels above desktop windows. Adjust **Background transparency** from 0% to 80% and save to apply it; text and battery indicators stay opaque. The compact widget has no heading, explanatory caption or window outline. Its native layered surface blends directly with the desktop. It follows the application theme, updates as devices report data, and remembers its position separately from other settings. To reposition it, choose **Save and move widget** and drag anywhere on the widget. Switching to any other application, including a windowed game, automatically locks movement and restores click-through; returning to the app does not unlock it. Disable the toggle and save to remove the widget. Desktop overlays may be covered by games using exclusive fullscreen mode.
+Enable the **Always-on-top widget** in Settings to show device battery levels above desktop windows. Changes apply and save automatically. Adjust **Background transparency** from 0% to 100%; text and battery indicators stay opaque. Standard mode shows names and charge bars. Minimized mode shows device-type symbols and compact batteries containing percentages; choose a horizontal strip or vertical stack. Device visibility in the widget and tray can be controlled independently. The widget has no heading or window outline, follows the application theme, and remembers its position. To reposition it, choose **Move widget** and drag anywhere on it. Switching to any other application, including a windowed game, locks movement and restores click-through; returning to the app does not unlock it. Disable the toggle to remove the widget. Desktop overlays may be covered by games using exclusive fullscreen mode.
+
+From v0.6.0, closing the dashboard terminates its MAUI process and releases its pages, language resources and UI framework memory. The agent keeps device monitoring, tray icons, notifications and the widget active. Opening the tray icon launches the dashboard again. Settings reach the agent immediately over a local channel restricted to the current Windows user and session; unchanged snapshots do not retransmit device lists. RAM depends on connected devices, widget configuration and runtime warm-up; 10 MiB is not a guaranteed target.
 
 The app queries each device at startup/reconnect or manual **Refresh batteries**, then listens for battery-change reports. It does not poll battery percentages every five minutes. Firmware controls notification timing; if a change is not reported, use Refresh. Zero percent is a valid value; missing data is displayed as unavailable rather than zero.
 
@@ -55,7 +57,11 @@ Custom installation locations require v0.5.8 or later. When installed outside th
 
 ```text
 src/
-  App/         Dashboard, tray, settings and release updater
+  Agent/       Lightweight monitor, tray and widget host
+  Desktop/     On-demand .NET MAUI dashboard, settings and updates
+  Shared/      Models, local IPC protocol and single-instance coordination
+  Windows/     Shared native tray and layered widget rendering
+  App/         Compatibility entry script and legacy interface
   Core/        Shared state and Windows HID discovery
   Devices/     Dedicated HID providers, Windows discovery and BLE worker
   UI/          Drawn device cards and connection/device icons
@@ -72,11 +78,11 @@ version.json   Release version and repository metadata
 
 ```powershell
 ./scripts/Test.ps1
-./scripts/Build.ps1
-./Start.cmd
+./scripts/Build-Maui.ps1
+./tests/Test-MauiPackage.ps1 -OutputDirectory dist-maui
 ```
 
-Build output goes into `dist/`: portable ZIP, setup EXE and SHA256SUMS.txt. A matching `vX.Y.Z` tag triggers a tested GitHub release. See [development and release instructions](docs/DEVELOPMENT.md) and [device protocol details](docs/PROTOCOL.md).
+Build output goes into `dist-maui/`: portable ZIP, setup EXE and SHA256SUMS.txt. A matching `vX.Y.Z` tag triggers a tested GitHub release. See [development and release instructions](docs/DEVELOPMENT.md) and [device protocol details](docs/PROTOCOL.md).
 
 ## Validation and limits
 

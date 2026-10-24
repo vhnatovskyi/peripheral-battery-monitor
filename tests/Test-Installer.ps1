@@ -8,7 +8,7 @@ try{
     $root=Join-Path $temporary 'Custom apps\Заряд пристроїв'
     & (Join-Path $package 'installer/Install.ps1') -PackageRoot $package -InstallRoot $root -NoLaunch -NoIntegration
     $version=(Get-Content -Raw (Join-Path $package 'version.json') | ConvertFrom-Json).version
-    foreach($file in @('PeripheralBatteryMonitor.exe','app/PeripheralBatteryMonitor.Desktop.exe','app/PeripheralBatteryMonitor.Desktop.dll')){
+    foreach($file in @('PeripheralBatteryMonitor.exe','app/PeripheralBatteryMonitor.Desktop.exe','app/PeripheralBatteryMonitor.Desktop.dll','app/PeripheralBatteryMonitor.Agent.exe','app/PeripheralBatteryMonitor.Agent.dll')){
         $path=Join-Path $package $file
         if(Test-Path -LiteralPath $path){
             $info=[Diagnostics.FileVersionInfo]::GetVersionInfo($path)

@@ -1,3 +1,11 @@
+## v0.6.0
+
+- Move monitoring, tray icons, low-battery notifications and the layered widget into a lightweight .NET background agent without MAUI or WinUI dependencies. Start the MAUI dashboard on demand and terminate its process when its window closes, releasing cached pages and UI resources while monitoring continues.
+- Apply settings immediately over a current-user, per-session local pipe. Flush pending changes before closing the dashboard, debounce disk writes, reconnect after an agent restart and avoid retransmitting unchanged snapshots.
+- Preserve device providers, battery filtering, independent widget/tray visibility, Minimized horizontal/vertical layouts, background transparency, themes, localization and the game-safe drag guard.
+- Coordinate the agent and dashboard during installation, updates and uninstall. Keep shared dependencies together without duplicate runtime files, and validate that the agent does not depend on MAUI/WinUI.
+- Add isolated tests using the real agent message loop, IPC, persistence and native widget, plus an optional MAUI integration test that verifies the final setting survives window closure.
+
 ## v0.5.12
 
 - Add the optional Minimized widget: device-type symbols replace names, and each compact battery contains its charge percentage. Choose a horizontal strip (up to four devices per row) or a vertical stack. Resize when devices appear or disappear, and retain independent visibility, colors, background transparency and click-through protection.

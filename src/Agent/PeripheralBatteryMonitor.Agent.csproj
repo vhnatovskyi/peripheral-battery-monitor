@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <ApplicationIcon>../../assets/branding/app-icon.ico</ApplicationIcon>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>false</SelfContained>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <RestoreSources>https://api.nuget.org/v3/index.json</RestoreSources>
+  </PropertyGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="9" />
+    <PackageReference Include="System.Drawing.Common" Version="10.0.0" />
+    <Compile Include="../Core/*.cs" Link="Core/%(Filename)%(Extension)" />
+    <Compile Include="../Devices/*.cs" Link="Devices/%(Filename)%(Extension)" />
+    <Compile Include="../Shared/*.cs" Link="Shared/%(Filename)%(Extension)" />
+    <Compile Include="../Windows/*.cs" Link="Windows/%(Filename)%(Extension)" />
+    <Compile Include="../Desktop/Services/DeviceService.cs" Link="Services/DeviceService.cs" />
+    <Compile Include="../Desktop/Services/SettingsStore.cs" Link="Services/SettingsStore.cs" />
+    <Compile Include="../UI/TrayBatteryPainter.cs" Link="TrayBatteryPainter.cs" />
+  </ItemGroup>
+</Project>

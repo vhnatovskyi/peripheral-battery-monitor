@@ -9,7 +9,7 @@ internal static class SingleInstanceTests
     private static int Main(string[] args)
     {
         string folder=args[0];
-        if(args.Length>1)
+        if(Array.IndexOf(args,"owner")>=0)
         {
             if(!SingleInstance.TryClaim())return 2;
             using(var show=new EventWaitHandle(false,EventResetMode.AutoReset,ShowName))
@@ -21,7 +21,7 @@ internal static class SingleInstanceTests
         Process child=null;
         try
         {
-            child=Process.Start(new ProcessStartInfo(typeof(SingleInstanceTests).Assembly.Location,"\""+folder+"\" owner") { UseShellExecute=false,CreateNoWindow=true });
+            child=Process.Start(new ProcessStartInfo(typeof(SingleInstanceTests).Assembly.Location,"\""+folder+"\" owner"+(Array.IndexOf(args,"--agent-client")>=0?" --agent-client":"")) { UseShellExecute=false,CreateNoWindow=true });
             WaitFile(folder,"ready");
             if(SingleInstance.TryClaim())throw new Exception("Second instance acquired the application mutex");
             WaitFile(folder,"activated");
@@ -37,7 +37,7 @@ internal static class SingleInstanceTests
         finally { if(child!=null) { if(!child.HasExited){child.Kill();child.WaitForExit();}child.Dispose(); } }
     }
     // Replaced with an isolated test event by Test-SingleInstance.ps1.
-    private const string ShowName=@"Local\PeripheralBatteryMonitor.Show";
+    private static string ShowName { get { return Array.IndexOf(Environment.GetCommandLineArgs(),"--agent-client")>=0?@"Local\PeripheralBatteryMonitor.UI.Show":@"Local\PeripheralBatteryMonitor.Show"; } }
     private static void WaitFile(string folder,string name)
     {
         for(int i=0;i<100;i++){if(File.Exists(Path.Combine(folder,name)))return;Thread.Sleep(50);}

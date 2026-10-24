@@ -12,8 +12,8 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <ApplicationIcon>../../assets/branding/app-icon.ico</ApplicationIcon>
     <ApplicationId>io.github.vhnatovskyi.peripheralbatterymonitor</ApplicationId>
-    <ApplicationDisplayVersion>0.5.12</ApplicationDisplayVersion>
-    <ApplicationVersion>62</ApplicationVersion>
+    <ApplicationDisplayVersion>0.6.0</ApplicationDisplayVersion>
+    <ApplicationVersion>63</ApplicationVersion>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <SelfContained>false</SelfContained>
@@ -28,6 +28,10 @@
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="9" />
     <Compile Include="../Shared/ProductInfo.cs" Link="Properties/ProductInfo.cs" />
     <Compile Include="../Shared/SingleInstance.cs" Link="Windows/SingleInstance.cs" />
+    <Compile Include="../Shared/MonitorSettings.cs" Link="Models/MonitorSettings.cs" />
+    <Compile Include="../Shared/DeviceReading.cs" Link="Models/DeviceReading.cs" />
+    <Compile Include="../Shared/AgentProtocol.cs" Link="Interop/AgentProtocol.cs" />
+    <Compile Include="../Windows/*.cs" Link="Windows/%(Filename)%(Extension)" />
     <MauiImage Include="Resources/Images/brand.png" Resize="false" />
     <Content Include="../../assets/branding/app-icon.ico" Link="app-icon.ico" CopyToOutputDirectory="PreserveNewest" />
     <MauiAsset Include="Resources/Raw/**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />

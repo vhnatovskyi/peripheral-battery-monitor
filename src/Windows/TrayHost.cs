@@ -46,8 +46,8 @@ public sealed class TrayHost : IDisposable
     [DllImport("user32.dll")]private static extern bool DestroyMenu(IntPtr menu);
     [DllImport("user32.dll")]private static extern bool GetCursorPos(out Point point);
     [DllImport("user32.dll")]private static extern bool SetForegroundWindow(IntPtr hwnd);
-    public TrayHost(Microsoft.UI.Xaml.Window nativeWindow,Action<string> onAction)
-    { window=WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow);action=onAction;callback=WindowMessage;SetWindowSubclass(window,callback,new UIntPtr(815),IntPtr.Zero); }
+    public TrayHost(IntPtr nativeWindow,Action<string> onAction)
+    { window=nativeWindow;action=onAction;callback=WindowMessage;SetWindowSubclass(window,callback,new UIntPtr(815),IntPtr.Zero); }
     public void Invalidate()=>fingerprint="";
     internal static DeviceReading[] VisibleDevices(IReadOnlyList<DeviceReading> readings,MonitorSettings settings)=>readings.Where(d=>settings.ShowInTray(d.Id)).ToArray();
     public void Update(IReadOnlyList<DeviceReading> readings,MonitorSettings current)

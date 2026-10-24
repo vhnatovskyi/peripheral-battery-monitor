@@ -9,6 +9,11 @@ $archive=[IO.Compression.ZipFile]::OpenRead($zip)
 try{
     $names=@($archive.Entries | ForEach-Object {$_.FullName.Replace('\','/')})
     if($names -notcontains 'app/PeripheralBatteryMonitor.Desktop.exe'){throw 'Native MAUI executable missing'}
+    if($names -notcontains 'app/PeripheralBatteryMonitor.Agent.exe'){throw 'Background agent missing'}
+    $agentEntry=$archive.Entries | Where-Object {$_.FullName.Replace('\','/') -eq 'app/PeripheralBatteryMonitor.Agent.deps.json'} | Select-Object -First 1
+    $reader=New-Object IO.StreamReader($agentEntry.Open())
+    try{$agentDependencies=$reader.ReadToEnd()}finally{$reader.Dispose()}
+    if($agentDependencies -match 'Microsoft\.(Maui|WindowsAppSDK|WinUI|UI\.Xaml)'){throw 'Background agent must not load MAUI or WinUI'}
     $images=@($names | Where-Object {$_ -match '(?i)^app/.*\.(png|ico|jpg|svg)$'})
     if($images.Count -gt 5 -or ($names -notcontains 'app/brand.png' -and $names -notcontains 'app/brand.scale-100.png') -or $names -notcontains 'app/app-icon.ico'){throw 'Unexpected image assets; keep at most five actually used images'}
     if($names -contains 'app/hostfxr.dll' -or $names -contains 'app/coreclr.dll'){throw 'Shared runtime unexpectedly bundled'}
@@ -20,6 +25,7 @@ try{
     if(($archive.Entries | Measure-Object Length -Sum).Sum -gt 100MB){throw 'Package exceeds legacy archive limit'}
 }finally{$archive.Dispose()}
 & (Join-Path $PSScriptRoot 'Test-Installer.ps1') -PackageZip $zip
+& (Join-Path $PSScriptRoot 'Test-Agent.ps1') -PackageZip $zip
 $setup=Join-Path ([IO.Path]::GetFullPath($OutputDirectory)) "PeripheralBatteryMonitor-Setup-$version.exe"
 $info=[Diagnostics.FileVersionInfo]::GetVersionInfo($setup)
 if($info.CompanyName -ne 'Vladyslav Hnatovskyi' -or $info.ProductVersion -ne $version -or $info.Comments -notlike '*linkedin.com/in/vladyslav-hnatovskyi/*' -or $info.LegalCopyright -notlike '*vhnatovskyi@hotmail.com*'){throw 'Installer developer metadata missing'}

@@ -12,6 +12,21 @@ New-Item -ItemType Directory -Path (Join-Path $stage 'app') -Force | Out-Null
 try{
     & dotnet publish (Join-Path $root 'src/Desktop/PeripheralBatteryMonitor.Desktop.csproj') -c Release -r win-x64 --self-contained false -p:WindowsPackageType=None -p:WindowsAppSDKSelfContained=false -p:PublishReadyToRun=false -p:PublishTrimmed=false -o (Join-Path $stage 'app') -v quiet -clp:ErrorsOnly
     if($LASTEXITCODE -ne 0){throw 'MAUI publish failed'}
+    $agentStage=Join-Path $stage 'agent'
+    & dotnet publish (Join-Path $root 'src/Agent/PeripheralBatteryMonitor.Agent.csproj') -c Release -r win-x64 --self-contained false -p:PublishReadyToRun=false -p:PublishTrimmed=false -o $agentStage -v quiet -clp:ErrorsOnly
+    if($LASTEXITCODE -ne 0){throw 'Background agent publish failed'}
+    foreach($file in Get-ChildItem -LiteralPath $agentStage -Recurse -File){
+        if($file.Extension -eq '.pdb'){continue}
+        $relative=$file.FullName.Substring($agentStage.Length+1)
+        $target=Join-Path (Join-Path $stage 'app') $relative
+        if(Test-Path -LiteralPath $target){
+            if((Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash){throw "Conflicting shared dependency: $relative"}
+        }else{
+            New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
+            Copy-Item -LiteralPath $file.FullName -Destination $target
+        }
+    }
+    if(([IO.Path]::GetFullPath($agentStage)).StartsWith($stage.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){Remove-Item -LiteralPath $agentStage -Recurse -Force}
     $sourceFolder=Join-Path $stage 'src'
     New-Item -ItemType Directory -Path $sourceFolder | Out-Null
     Copy-Item -LiteralPath (Join-Path $root 'src/App') -Destination $sourceFolder -Recurse

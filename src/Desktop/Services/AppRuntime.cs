@@ -13,6 +13,12 @@ public sealed class AppRuntime
     public event Action<string>? NavigateRequested;
     public event Action? ShowRequested;
     private readonly bool smoke=Environment.GetCommandLineArgs().Contains("--ui-smoke");
+    private readonly bool client=Environment.GetCommandLineArgs().Contains("--agent-client");
+    private AgentConnection? agent;
+    private bool closingClient;
+    private long navigationSequence=-1;
+    private long appliedSequence=-1;
+    private string agentInstance="";
     private IDispatcherTimer? settingsSaveTimer;
     private bool settingsPending;
     public event Action<string?>? SettingsSaveStatus;
@@ -32,8 +38,9 @@ public sealed class AppRuntime
     {
         if(smoke){string? language=Environment.GetEnvironmentVariable("PBM_UI_SMOKE_LANGUAGE");if(language is "uk" or "en")Settings.Value.Language=language;return true;}
         if(!SingleInstance.TryClaim())return false;
-        exitEvent=new EventWaitHandle(false,EventResetMode.AutoReset,@"Local\PeripheralBatteryMonitor.Exit");
-        showEvent=new EventWaitHandle(false,EventResetMode.AutoReset,@"Local\PeripheralBatteryMonitor.Show");
+        string prefix=client?SingleInstance.UiPrefix:@"Local\PeripheralBatteryMonitor";
+        exitEvent=new EventWaitHandle(false,EventResetMode.AutoReset,prefix+".Exit");
+        showEvent=new EventWaitHandle(false,EventResetMode.AutoReset,prefix+".Show");
         return true;
     }
     public void Start(Window window)
@@ -45,7 +52,7 @@ public sealed class AppRuntime
         if(nativeWindow.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)presenter.IsMaximizable=false;
         string icon=Path.Combine(AppContext.BaseDirectory,"app-icon.ico");
         if(File.Exists(icon))nativeWindow.AppWindow.SetIcon(icon);
-        nativeWindow.AppWindow.Closing+=(_,args)=>{if(!exiting){args.Cancel=true;nativeWindow.AppWindow.Hide();}};
+        nativeWindow.AppWindow.Closing+=(sender,args)=>{if(!exiting){args.Cancel=true;if(client)_=CloseClientAsync();else nativeWindow.AppWindow.Hide();}};
         ResizeForCurrentPage();
         if(smoke)
         {
@@ -57,7 +64,18 @@ public sealed class AppRuntime
                 _=Platforms.Windows.UiSmoke.RunAsync(nativeWindow,folder);
             return;
         }
-        tray=new Platforms.Windows.TrayHost(nativeWindow,HandleTrayAction);
+        if(client)
+        {
+            agent=new();
+            agent.Received+=snapshot=>window.Dispatcher.Dispatch(()=>Receive(snapshot));
+            agent.Error+=error=>window.Dispatcher.Dispatch(()=>SettingsSaveStatus?.Invoke(error));
+            agent.Start(WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow));
+            timer=window.Dispatcher.CreateTimer();timer.Interval=TimeSpan.FromMilliseconds(250);
+            timer.Tick+=(_,_)=>{if(exitEvent?.WaitOne(0)==true)Exit();else if(showEvent?.WaitOne(0)==true)Show();};timer.Start();
+            if(Environment.GetCommandLineArgs().Contains("--agent-integration-test"))_=Platforms.Windows.AgentClientSmoke.RunAsync(nativeWindow);
+            return;
+        }
+        tray=new Platforms.Windows.TrayHost(WinRT.Interop.WindowNative.GetWindowHandle(nativeWindow),HandleTrayAction);
         SyncWidget();
         Devices.Start();
         if(Environment.GetEnvironmentVariable("PBM_UI_LIVE_ROOT") is string liveFolder && liveFolder.Length>0)
@@ -66,6 +84,38 @@ public sealed class AppRuntime
         timer.Tick+=(_,_)=>Tick();timer.Start();Tick();
         if(Background)nativeWindow.AppWindow.Hide();
         if(Settings.Value.CheckForUpdates)_=CheckReleaseAsync();
+    }
+    private void Receive(Interop.AgentSnapshot snapshot)
+    {
+        if(exiting)return;
+        if(agentInstance!=snapshot.Instance){agentInstance=snapshot.Instance;appliedSequence=-1;navigationSequence=-1;}
+        if(snapshot.Sequence<appliedSequence)return;appliedSequence=snapshot.Sequence;
+        Readings=snapshot.Devices;
+        if(agent?.HasPendingSettings==false)
+        {
+            bool translate=Settings.Value.Language!=snapshot.Settings.Language;
+            bool theme=Settings.Value.Theme!=snapshot.Settings.Theme;
+            Settings.Apply(snapshot.Settings);
+            if(theme)ApplyTheme();
+            if(translate)SettingsChanged?.Invoke();
+        }
+        if(navigationSequence!=snapshot.NavigationSequence)
+        {
+            navigationSequence=snapshot.NavigationSequence;
+            NavigateRequested?.Invoke(snapshot.Route);
+        }
+        Changed?.Invoke();
+    }
+    private async Task CloseClientAsync()
+    {
+        if(closingClient || exiting)return;closingClient=true;
+        try
+        {
+            if(agent!=null){await agent.FlushAsync();await agent.CommandAsync("detach-ui");}
+            Exit();
+        }
+        catch(Exception error) when(error is TimeoutException or IOException or OperationCanceledException)
+        {closingClient=false;SettingsSaveStatus?.Invoke(error.Message);Show();}
     }
     private void Tick()
     {
@@ -106,6 +156,7 @@ public sealed class AppRuntime
         if(translate)SettingsChanged?.Invoke();
         tray?.Invalidate();tray?.Update(Readings,Settings.Value);
         if(smoke)return;
+        if(client){agent?.QueueSettings(value);return;}
         settingsPending=true;
         settingsSaveTimer??=mauiWindow!.Dispatcher.CreateTimer();
         settingsSaveTimer.Interval=TimeSpan.FromMilliseconds(250);
@@ -122,12 +173,12 @@ public sealed class AppRuntime
     }
     private void SyncWidget()
     {
-        if(nativeWindow==null || smoke)return;
+        if(nativeWindow==null || smoke || client)return;
         if(Settings.Value.WidgetEnabled)widget??=new Platforms.Windows.BatteryWidget(nativeWindow);
         else { widget?.Dispose();widget=null; }
         widget?.Update(Readings);
     }
-    public void MoveWidget()=>widget?.BeginMove();
+    public void MoveWidget(){if(client)_=agent?.CommandAsync("move-widget");else widget?.BeginMove();}
     public void ApplyTheme()=>Application.Current!.UserAppTheme=Settings.Value.Theme switch { "Light"=>AppTheme.Light,"Dark"=>AppTheme.Dark,_=>AppTheme.Unspecified };
     public void RefreshAppearance(){UpdateCaptionTheme();widget?.Update(Readings);AppearanceChanged?.Invoke();Changed?.Invoke();tray?.Invalidate();}
     private void UpdateCaptionTheme()
@@ -140,7 +191,7 @@ public sealed class AppRuntime
         bar.ButtonHoverBackgroundColor=dark?global::Windows.UI.Color.FromArgb(255,52,72,95):global::Windows.UI.Color.FromArgb(255,220,231,245);
         bar.ButtonHoverForegroundColor=bar.ButtonForegroundColor;
     }
-    public void Refresh(){Devices.Refresh();}
+    public void Refresh(){if(client)_=agent?.CommandAsync("refresh");else Devices.Refresh();}
     public double MaximumWindowHeight
     {
         get{
@@ -175,7 +226,7 @@ public sealed class AppRuntime
     }
     public void Exit()
     {
-        if(exiting)return;exiting=true;SavePendingSettings(null,EventArgs.Empty);timer?.Stop();widget?.Dispose();tray?.Dispose();
+        if(exiting)return;exiting=true;SavePendingSettings(null,EventArgs.Empty);timer?.Stop();widget?.Dispose();tray?.Dispose();agent?.Dispose();
         SingleInstance.Release();exitEvent?.Dispose();showEvent?.Dispose();
         // Process exit releases pending device reads without delaying an upgrade.
         Environment.Exit(0);

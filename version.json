@@ -1,5 +1,6 @@
 {
   "repository": "vhnatovskyi/peripheral-battery-monitor",
   "interface": "maui",
-  "version": "0.5.12"
+  "background": "agent",
+  "version": "0.6.0"
 }
