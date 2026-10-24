@@ -51,6 +51,7 @@ if (-not $NoIntegration) {
     $shortcut.TargetPath = $launcher
     $shortcut.WorkingDirectory = $install
     $shortcut.Description = 'Mouse and keyboard battery monitor'
+    $shortcut.IconLocation = (Join-Path $destination 'PeripheralBatteryMonitor.exe')+',0'
     $shortcut.Save()
     $uninstall = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\PeripheralBatteryMonitor'
     New-Item -Path $uninstall -Force | Out-Null

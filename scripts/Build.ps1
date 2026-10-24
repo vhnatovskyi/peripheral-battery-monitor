@@ -10,19 +10,22 @@ New-Item -ItemType Directory -Path $output -Force | Out-Null
 $stage=Join-Path $output ('staging-'+[Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $stage | Out-Null
 try {
-    foreach($folder in @('src','installer')){Copy-Item -LiteralPath (Join-Path $root $folder) -Destination $stage -Recurse}
+    New-Item -ItemType Directory -Path (Join-Path $stage 'src') | Out-Null
+    foreach($folder in @('Core','Devices','UI','App','Launcher')){Copy-Item -LiteralPath (Join-Path $root "src/$folder") -Destination (Join-Path $stage 'src') -Recurse}
+    Copy-Item -LiteralPath (Join-Path $root 'installer') -Destination $stage -Recurse
+    $icon=Join-Path $root 'assets/branding/app-icon.ico'
     Copy-Item -LiteralPath (Join-Path $root 'version.json') -Destination $stage
     $compiler=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
     if(-not (Test-Path -LiteralPath $compiler)){throw 'Windows .NET Framework compiler not available.'}
     $launcher=Join-Path $stage 'PeripheralBatteryMonitor.exe'
     $automation=[System.Management.Automation.PowerShell].Assembly.Location
-    & $compiler /nologo /target:winexe /platform:x64 "/out:$launcher" /reference:System.Windows.Forms.dll "/reference:$automation" (Join-Path $root 'src/Launcher/Program.cs')
+    & $compiler /nologo /target:winexe /platform:x64 "/out:$launcher" "/win32icon:$icon" /reference:System.Windows.Forms.dll "/reference:$automation" (Join-Path $root 'src/Launcher/Program.cs')
     if($LASTEXITCODE -ne 0){throw 'Launcher compilation failed.'}
     $zipName="PeripheralBatteryMonitor-$version-win-x64.zip"
     $zip=Join-Path $output $zipName
     Compress-Archive -Path (Join-Path $stage '*') -DestinationPath $zip -Force
     $setup=Join-Path $output "PeripheralBatteryMonitor-Setup-$version.exe"
-    & $compiler /nologo /target:winexe /platform:x64 "/out:$setup" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.FileSystem.dll "/resource:$zip,payload.zip" (Join-Path $root 'installer/Setup.cs')
+    & $compiler /nologo /target:winexe /platform:x64 "/out:$setup" "/win32icon:$icon" /reference:System.Windows.Forms.dll /reference:System.IO.Compression.FileSystem.dll "/resource:$zip,payload.zip" (Join-Path $root 'installer/Setup.cs')
     if($LASTEXITCODE -ne 0){throw 'Setup compilation failed.'}
     @($zip,$setup) | ForEach-Object { '{0}  {1}' -f (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant(),(Split-Path $_ -Leaf) } | Set-Content -LiteralPath (Join-Path $output 'SHA256SUMS.txt') -Encoding ASCII
     "Built version $version in $output"

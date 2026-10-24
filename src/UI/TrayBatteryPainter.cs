@@ -9,6 +9,42 @@ namespace PeripheralBatteryMonitor.UI
 {
     public static class TrayBatteryPainter
     {
+        // Seven pixel rows keep all three digits of 100 inside a 16px tray icon.
+        // Font hinting after a fractional Graphics transform clips narrow glyphs.
+        private static readonly string[] Digits = {
+            "111101101101101101111", "010110010010010010111",
+            "111001001111100100111", "111001001111001001111",
+            "101101101111001001001", "111100100111001001111",
+            "111100100111101101111", "111001001010010010010",
+            "111101101111101101111", "111101101111001001111"
+        };
+        private static readonly string[] WideDigits = {
+            "01110100011001110101110011000101110", "00100011000010000100001000010001110",
+            "01110100010000100010001000100011111", "11110000010000101110000010000111110",
+            "00010001100101010010111110001000010", "11111100001000011110000010000111110",
+            "01110100001000011110100011000101110", "11111000010001000100010000100001000",
+            "01110100011000101110100011000101110", "01110100011000101111000010000101110"
+        };
+        private static void PixelCaption(Graphics g, string label, int size, bool combined)
+        {
+            int columns=label.Length>2 ? 3 : 5;
+            int scale=Math.Max(1,size/16), width=(label.Length*(columns+1)-1)*scale;
+            int x=(size-width)/2, y=combined ? (size-7*scale)/2 : size-7*scale;
+            g.ResetTransform();
+            g.SmoothingMode=SmoothingMode.None;
+            // Dark backing preserves contrast on both light and dark taskbars.
+            for(int pass=0;pass<2;pass++)
+            for(int i=0;i<label.Length;i++)
+            for(int row=0;row<7;row++)
+            for(int col=0;col<columns;col++)
+            {
+                bool lit=label[i]=='-' ? row==3 : (columns==3 ? Digits : WideDigits)[label[i]-'0'][row*columns+col]=='1';
+                if(!lit)continue;
+                int px=x+i*(columns+1)*scale+col*scale, py=y+row*scale;
+                if(pass==0)g.FillRectangle(Brushes.Black,px-1,py-1,scale+2,scale+2);
+                else g.FillRectangle(Brushes.White,px,py,scale,scale);
+            }
+        }
         private static GraphicsPath Round(RectangleF r, float radius)
         {
             float d=radius*2; var p=new GraphicsPath();
@@ -58,16 +94,11 @@ namespace PeripheralBatteryMonitor.UI
                 string label=known.Length>0 ? known.Min().ToString() : "--";
                 if(combined)
                 {
-                    float size=label.Length>2 ? 13 : 17;
-                    using(var font=new Font("Segoe UI",size,FontStyle.Bold,GraphicsUnit.Pixel))
-                    using(var format=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap })
-                        g.DrawString(label,font,Brushes.White,new RectangleF(3,3,26,26),format);
+                    PixelCaption(g,label,iconSize,true);
                     return bitmap;
                 }
                 // Keep the percentage on its own baseline below the battery.
-                using(var font=new Font("Segoe UI",label.Length>2 ? 16 : emphasizePercentage ? 19 : 18,FontStyle.Bold,GraphicsUnit.Pixel))
-                using(var format=new StringFormat { Alignment=StringAlignment.Center,LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap })
-                    g.DrawString(label,font,Brushes.White,new RectangleF(0,11,32,21),format);
+                PixelCaption(g,label,iconSize,false);
             }
             return bitmap;
         }

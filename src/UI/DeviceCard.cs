@@ -92,7 +92,9 @@ namespace PeripheralBatteryMonitor.UI
         }
         protected override void OnPaint(PaintEventArgs e)
         {
-            var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias; g.ScaleTransform(Width / 286f, Height / 154f); const int w = 286, h = 154;
+            var g = e.Graphics; g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+            g.ScaleTransform(Width / 286f, Height / 154f); const int w = 286, h = 154;
             var muted = Color.FromArgb(149, 163, 183);
             using (var shape = Round(new RectangleF(1, 1, w-3, h-3), 14))
             using (var fill = new SolidBrush(Color.FromArgb(27, 36, 50)))

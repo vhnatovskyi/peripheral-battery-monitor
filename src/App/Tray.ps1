@@ -97,6 +97,7 @@ function Save-Settings {
 }
 
 $window=New-Object Windows.Forms.Form
+try{$window.Icon=[Drawing.Icon]::ExtractAssociatedIcon((Join-Path $packageRoot 'PeripheralBatteryMonitor.exe'))}catch{}
 $window.Text='Peripheral Battery Monitor';$window.ClientSize=New-Object Drawing.Size(552,326)
 $window.BackColor=$bg;$window.ForeColor=[Drawing.Color]::White
 $window.StartPosition='CenterScreen';$window.FormBorderStyle='FixedSingle';$window.MaximizeBox=$false

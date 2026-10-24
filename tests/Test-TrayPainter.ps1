@@ -34,3 +34,20 @@ try{
     Assert ($captionPixels -gt 15) 'Native-size charge digits are too small or missing'
 }finally{$native.Dispose()}
 'Tray colors, circle sections and percentage placement regression tests passed'
+foreach($size in @(16,20,24,32)){
+    foreach($combined in @($false,$true)){
+        foreach($value in @(0,82,93,100,-1)){
+            $image=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render([int[]]@($value),$colors,$combined,$false,$size)
+            try{
+                $white=0;$left=$size;$right=0
+                for($y=0;$y -lt $size;$y++){for($x=0;$x -lt $size;$x++){
+                    $pixel=$image.GetPixel($x,$y)
+                    if($pixel.A -eq 255 -and $pixel.R -eq 255 -and $pixel.G -eq 255 -and $pixel.B -eq 255){$white++;$left=[Math]::Min($left,$x);$right=[Math]::Max($right,$x)}
+                }}
+                Assert ($white -ge 10) 'Native tray caption lost its solid pixels'
+                Assert ($left -ge 0 -and $right -lt $size) 'Native charge caption was clipped'
+                if($value -eq 100){Assert (($right-$left+1) -ge 10) '100 lost one or more digits'}
+            }finally{$image.Dispose()}
+        }
+    }
+}
