@@ -19,6 +19,8 @@ internal sealed class BatteryWidget : IDisposable
     internal int DeviceCount { get; private set; }
     internal bool ClickThrough => (GetWindowLong(handle,-20)&0x20)!=0;
     internal byte NativeOpacity { get { GetLayeredWindowAttributes(handle,out _,out byte alpha,out _);return alpha; } }
+    internal byte BackgroundOpacity => ((Media.SolidColorBrush)frame.Background).Color.A;
+    internal bool HasTransparentBackdrop => Window.SystemBackdrop is TransparentWidgetBackdrop backdrop && backdrop.IsConnected;
     private readonly IntPtr handle,owner;
     private readonly bool persist;
     private readonly Native.DispatcherTimer guard=new() { Interval=TimeSpan.FromMilliseconds(100) };
@@ -28,8 +30,6 @@ internal sealed class BatteryWidget : IDisposable
     private uint dpi;
     private IReadOnlyList<DeviceReading> readings=[];
     private readonly Controls.StackPanel rows=new() { Spacing=8 };
-    private readonly Controls.TextBlock heading=new() { FontSize=12,FontWeight=Microsoft.UI.Text.FontWeights.SemiBold };
-    private readonly Controls.TextBlock hint=new() { FontSize=10 };
     private readonly Native.Controls.Border frame;
 
     public BatteryWidget(Native.Window main,bool persistPosition=true)
@@ -41,18 +41,16 @@ internal sealed class BatteryWidget : IDisposable
         presenter.SetBorderAndTitleBar(false,false);
         presenter.IsResizable=false;presenter.IsMaximizable=false;presenter.IsMinimizable=false;presenter.IsAlwaysOnTop=true;
         Window.AppWindow.SetPresenter(presenter);Window.AppWindow.IsShownInSwitchers=false;
-        var header=new Controls.StackPanel { Spacing=2,Margin=new Native.Thickness(0,0,0,10) };
-        header.Children.Add(heading);header.Children.Add(hint);
-        header.PointerPressed+=(_,e)=>
+        frame=new Native.Controls.Border { Padding=new Native.Thickness(10),BorderThickness=new Native.Thickness(1),CornerRadius=new Native.CornerRadius(10),Child=rows };
+        frame.PointerPressed+=(_,e)=>
         {
             if(!CanMove(GetForegroundWindow()==owner || GetForegroundWindow()==handle,IsMoving)) { SetMoving(false);return; }
-            if(!e.GetCurrentPoint(header).Properties.IsLeftButtonPressed)return;
+            if(!e.GetCurrentPoint(frame).Properties.IsLeftButtonPressed)return;
             ReleaseCapture();SendMessage(handle,0xA1,new IntPtr(2),IntPtr.Zero); // Native caption drag, supports multiple displays.
             e.Handled=true;
         };
-        var content=new Controls.StackPanel();content.Children.Add(header);content.Children.Add(rows);
-        frame=new Native.Controls.Border { Padding=new Native.Thickness(12),BorderThickness=new Native.Thickness(1),CornerRadius=new Native.CornerRadius(12),Child=content };
         Window.Content=new Controls.ScrollViewer { Content=frame,VerticalScrollBarVisibility=Controls.ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=Controls.ScrollBarVisibility.Disabled };
+        Window.SystemBackdrop=new TransparentWidgetBackdrop();
         int style=GetWindowLong(handle,-20);
         SetWindowLong(handle,-20,(style|0x80000|0x80|0x08000000)&~0x40000); // Layered, tool window, no activation or taskbar button.
         SetLayeredWindowAttributes(handle,0,255,2);
@@ -84,16 +82,15 @@ internal sealed class BatteryWidget : IDisposable
     {
         if(disposed)return;
         readings=value;
-        SetLayeredWindowAttributes(handle,0,(byte)Math.Round(Math.Clamp(AppRuntime.Current.Settings.Value.WidgetOpacity,20,100)*2.55),2);
         bool dark=Views.Design.IsDark;
-        string next=$"{dark}|{IsMoving}|{AppRuntime.Current.Settings.Value.Language}|"+string.Join('|',value.Select(d=>$"{d.Id}:{d.Name}:{d.Transport}:{d.Percent}:{d.Accent}"));
+        int opacity=Math.Clamp(AppRuntime.Current.Settings.Value.WidgetOpacity,20,100);
+        string next=$"{dark}|{IsMoving}|{opacity}|{AppRuntime.Current.Settings.Value.Language}|"+string.Join('|',value.Select(d=>$"{d.Id}:{d.Name}:{d.Transport}:{d.Percent}:{d.Accent}"));
         if(fingerprint==next)return;fingerprint=next;DeviceCount=value.Count;
         var foreground=Brush(dark?"#F3F6FA":"#182435");
         var secondary=Brush(dark?"#A5B4C8":"#52647A");
-        frame.Background=Brush(dark?"#172232":"#F5F8FC");frame.BorderBrush=Brush(IsMoving?"#399BDE":dark?"#34465D":"#CBD8E8");
-        heading.Foreground=foreground;hint.Foreground=secondary;
-        heading.Text=AppRuntime.Current.Text("Заряд пристроїв","Device batteries");
-        hint.Text=IsMoving?AppRuntime.Current.Text("Перетягніть за цей заголовок","Drag this header to move"):AppRuntime.Current.Text("Кліки проходять крізь віджет","Clicks pass through this widget");
+        frame.Background=Brush(dark?"#172232":"#F5F8FC",alpha:(byte)Math.Round(opacity*2.55));
+        frame.BorderBrush=Brush(IsMoving?"#399BDE":dark?"#34465D":"#CBD8E8",alpha:IsMoving?(byte)255:(byte)Math.Round(opacity*2.55));
+        Controls.ToolTipService.SetToolTip(frame,IsMoving?AppRuntime.Current.Text("Перетягніть віджет","Drag to move widget"):null);
         rows.Children.Clear();
         foreach(var device in value)
         {
@@ -109,9 +106,9 @@ internal sealed class BatteryWidget : IDisposable
         if(value.Count==0)rows.Children.Add(new Controls.TextBlock { Text=AppRuntime.Current.Text("Немає підключених пристроїв","No connected devices"),FontSize=12,Foreground=secondary });
         dpi=GetDpiForWindow(handle);double scale=dpi/96d;
         var area=DisplayArea.GetFromWindowId(Window.AppWindow.Id,DisplayAreaFallback.Nearest).WorkArea;
-        int height=Math.Min(area.Height-16,(int)Math.Ceiling((76+Math.Max(1,value.Count)*43)*scale));
+        int height=Math.Min(area.Height-16,(int)Math.Ceiling((22+Math.Max(1,value.Count)*40)*scale));
         // A scroll container keeps large device collections reachable within the display.
-        Window.AppWindow.Resize(new((int)Math.Ceiling(280*scale),Math.Max(80,height)));
+        Window.AppWindow.Resize(new((int)Math.Ceiling(280*scale),Math.Max(55,height)));
         KeepOnDisplay(area);
     }
     private void RestorePosition(Native.Window main)
@@ -141,8 +138,8 @@ internal sealed class BatteryWidget : IDisposable
         }
         catch(Exception error) when(error is IOException or UnauthorizedAccessException) { }
     }
-    private static Media.SolidColorBrush Brush(string hex,double brightness=1)
-    {var c=Microsoft.Maui.Graphics.Color.FromArgb(hex);return new(global::Windows.UI.Color.FromArgb(255,(byte)(c.Red*255*brightness),(byte)(c.Green*255*brightness),(byte)(c.Blue*255*brightness)));}
+    private static Media.SolidColorBrush Brush(string hex,double brightness=1,byte alpha=255)
+    {var c=Microsoft.Maui.Graphics.Color.FromArgb(hex);return new(global::Windows.UI.Color.FromArgb(alpha,(byte)(c.Red*255*brightness),(byte)(c.Green*255*brightness),(byte)(c.Blue*255*brightness)));}
     public void Dispose(){if(disposed)return;SavePosition();disposed=true;guard.Stop();Window.Close();}
     [DllImport("user32.dll")]private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")]private static extern bool ReleaseCapture();
@@ -153,6 +150,26 @@ internal sealed class BatteryWidget : IDisposable
     [DllImport("user32.dll")]private static extern bool GetLayeredWindowAttributes(IntPtr hwnd,out uint key,out byte alpha,out uint flags);
     [DllImport("user32.dll")]private static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int cx,int cy,uint flags);
     [DllImport("user32.dll")]private static extern uint GetDpiForWindow(IntPtr hwnd);
+}
+
+// A transparent composition backdrop lets the panel use per-pixel alpha while
+// text and progress indicators retain full opacity. No global window fade.
+internal sealed class TransparentWidgetBackdrop : Media.SystemBackdrop
+{
+    private global::Windows.UI.Composition.Compositor? compositor;
+    private global::Windows.UI.Composition.CompositionColorBrush? brush;
+    internal bool IsConnected=>brush!=null;
+    protected override void OnTargetConnected(Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop target,Native.XamlRoot root)
+    {
+        base.OnTargetConnected(target,root);
+        compositor=new global::Windows.UI.Composition.Compositor();
+        brush=compositor.CreateColorBrush(global::Windows.UI.Color.FromArgb(0,0,0,0));
+        target.SystemBackdrop=brush;
+    }
+    protected override void OnTargetDisconnected(Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop target)
+    {
+        target.SystemBackdrop=null;brush?.Dispose();brush=null;compositor?.Dispose();compositor=null;base.OnTargetDisconnected(target);
+    }
 }
 
 internal sealed class WidgetPosition

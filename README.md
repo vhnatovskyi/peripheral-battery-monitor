@@ -2,6 +2,8 @@
 
 A Windows app built with **.NET MAUI** for wireless-device battery status. Native device cards, combined or separate tray indicators, local settings, and verified releases from GitHub. No vendor application or third-party device driver is required.
 
+[User guide / Інструкція користувача](https://github.com/vhnatovskyi/peripheral-battery-monitor/wiki)
+
 ## Install
 
 Download the **Setup EXE** from [the latest release](https://github.com/vhnatovskyi/peripheral-battery-monitor/releases/latest) and run it. Installation is per-user and does not require administrator rights. You can uninstall it through Windows **Installed apps**.
@@ -37,7 +39,7 @@ Double-click the tray icon to open the dashboard. Separate tray icons use device
 
 Bluetooth cards with a known target address show a centered unplug icon that requests Windows to disconnect that remote address while keeping its pairing. Unsupported/receiver cards hide this action. A driver may reject the request or reconnect automatically; the app offers Windows Bluetooth settings on failure. It does not disable the Bluetooth adapter or forget devices.
 
-Enable the **Always-on-top widget** in Settings and save to show device battery levels above desktop windows. Adjust **Transparency** from 0% to 80% and save to apply it. The widget follows the application theme, updates as devices report data, and remembers its position separately from other settings. To reposition it, choose **Save and move widget** and drag its header. Switching to any other application, including a windowed game, automatically locks movement and restores click-through; returning to the app does not unlock it. Disable the toggle and save to remove the widget. Desktop overlays may be covered by games using exclusive fullscreen mode.
+Enable the **Always-on-top widget** in Settings and save to show device battery levels above desktop windows. Adjust **Background transparency** from 0% to 80% and save to apply it; text and battery indicators stay opaque. The compact widget has no heading or explanatory caption. It follows the application theme, updates as devices report data, and remembers its position separately from other settings. To reposition it, choose **Save and move widget** and drag anywhere on the widget. Switching to any other application, including a windowed game, automatically locks movement and restores click-through; returning to the app does not unlock it. Disable the toggle and save to remove the widget. Desktop overlays may be covered by games using exclusive fullscreen mode.
 
 The app queries each device at startup/reconnect or manual **Refresh batteries**, then listens for battery-change reports. It does not poll battery percentages every five minutes. Firmware controls notification timing; if a change is not reported, use Refresh. Zero percent is a valid value; missing data is displayed as unavailable rather than zero.
 

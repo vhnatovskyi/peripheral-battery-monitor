@@ -1,3 +1,10 @@
+## v0.5.5
+
+- Apply widget transparency to the background only; keep names, percentages and battery bars fully opaque.
+- Remove the widget heading and explanatory caption to reduce height. After explicitly enabling positioning, drag anywhere on the widget.
+- Preserve click-through protection, automatic locking when switching applications, and saved position.
+- Add a Ukrainian user guide in the repository Wiki.
+
 ## v0.5.4
 
 - Add an optional always-on-top battery widget with live device levels, device colors, light/dark themes, and remembered screen position.

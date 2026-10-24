@@ -78,7 +78,8 @@ internal static class UiSmoke
                     widget.Update(Services.AppRuntime.Current.Readings);
                     int originalOpacity=Services.AppRuntime.Current.Settings.Value.WidgetOpacity;
                     Services.AppRuntime.Current.Settings.Value.WidgetOpacity=50;widget.Update(Services.AppRuntime.Current.Readings);
-                    if(widget.NativeOpacity is <127 or >128)throw new InvalidOperationException("Widget transparency was not applied to the native window");
+                    if(widget.NativeOpacity!=255 || widget.BackgroundOpacity is <127 or >128 || !widget.HasTransparentBackdrop)
+                        throw new InvalidOperationException("Only the background should fade over a transparent composition backdrop");
                     Services.AppRuntime.Current.Settings.Value.WidgetOpacity=originalOpacity;widget.Update(Services.AppRuntime.Current.Readings);
                     var settings=new Services.MonitorSettings { WidgetEnabled=true,WidgetOpacity=50 };
                     var json=System.Text.Json.JsonSerializer.Serialize(settings,Services.AppJsonContext.Default.MonitorSettings);
@@ -87,16 +88,22 @@ internal static class UiSmoke
                         throw new InvalidOperationException("Widget setting did not round-trip");
                     foreach(var theme in new[]{AppTheme.Light,AppTheme.Dark})
                     {
+                        Services.AppRuntime.Current.Settings.Value.WidgetOpacity=50;
                         Application.Current!.UserAppTheme=theme;widget.Update(Services.AppRuntime.Current.Readings);await Task.Delay(300);
                         var widgetbitmap=new RenderTargetBitmap();await widgetbitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)widget.Window.Content);
                         if(widgetbitmap.PixelWidth<250 || widgetbitmap.PixelHeight<100)throw new InvalidOperationException("Widget layout failed");
                         var widgetbuffer=await widgetbitmap.GetPixelsAsync();
+                        byte[] pixels=widgetbuffer.ToArray();
+                        int translucent=0,opaque=0;
+                        for(int i=3;i<pixels.Length;i+=4){if(pixels[i] is >100 and <180)translucent++;if(pixels[i]==255)opaque++;}
+                        if(translucent<1000 || opaque<100)throw new InvalidOperationException("Widget rendering must retain opaque content over translucent panel pixels");
                         var widgetfile=await StorageFile.GetFileFromPathAsync(CreateFile(Path.Combine(folder,theme.ToString().ToLowerInvariant()+"-widget.png")));
                         using var widgetstream=await widgetfile.OpenAsync(FileAccessMode.ReadWrite);
                         var widgetencoder=await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId,widgetstream);
                         widgetencoder.SetPixelData(BitmapPixelFormat.Bgra8,BitmapAlphaMode.Premultiplied,(uint)widgetbitmap.PixelWidth,(uint)widgetbitmap.PixelHeight,96,96,widgetbuffer.ToArray());
                         await widgetencoder.FlushAsync();
                     }
+                    Services.AppRuntime.Current.Settings.Value.WidgetOpacity=originalOpacity;
                 }
                 shell.FlyoutIsPresented=true;await Task.Delay(400);
                 var bitmap=new RenderTargetBitmap();await bitmap.RenderAsync((Microsoft.UI.Xaml.UIElement)window.Content);
