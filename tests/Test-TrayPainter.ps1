@@ -26,4 +26,11 @@ foreach($level in @(0,100,-1)){
     $image=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render([int[]]@($level),$colors,$false,$true)
     $image.Dispose()
 }
+$native=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render([int[]]@(100),$colors,$false,$false,16)
+try{
+    Assert ($native.Width -eq 16) 'Native tray size was not used'
+    $captionPixels=0
+    for($y=6;$y -lt 16;$y++){for($x=0;$x -lt 16;$x++){$pixel=$native.GetPixel($x,$y);if($pixel.A -gt 200 -and $pixel.R -eq 255 -and $pixel.G -eq 255 -and $pixel.B -eq 255){$captionPixels++}}}
+    Assert ($captionPixels -gt 15) 'Native-size charge digits are too small or missing'
+}finally{$native.Dispose()}
 'Tray colors, circle sections and percentage placement regression tests passed'

@@ -1,8 +1,9 @@
-## v0.4.3
+## v0.4.4
 
-- Give the combined indicator the entire icon area: a large device-colored sectioned circle with a high-contrast charge number in its center.
-- Remove the miniature bottom caption from combined mode; the tooltip keeps the percent sign and per-device values.
-- Preserve colored horizontal batteries and percentages underneath in separate mode.
-- Extend rendering checks to validate the centered combined caption and device accents.
+- Make individual tray readings larger: a compact colored battery at the top and large charge digits underneath.
+- Keep the percent sign in the tooltip instead of squeezing it beside the tiny tray caption.
+- Render directly at Windows' small-icon size to avoid blurring small text by downscaling.
+- Preserve the full-size combined circle and large centered charge number from v0.4.3.
+- Add a rendering regression check at the actual 16-pixel tray size.
 
-Download **PeripheralBatteryMonitor-Setup-0.4.3.exe**, or update from within the application. The MAUI redesign is being prepared as a separate release.
+Download **PeripheralBatteryMonitor-Setup-0.4.4.exe**, or use Updates. The MAUI redesign remains a separate release.

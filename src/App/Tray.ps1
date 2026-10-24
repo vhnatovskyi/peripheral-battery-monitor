@@ -299,7 +299,8 @@ $tray.Add_DoubleClick({Show-Window})
 function New-BatteryIcon($devices){
     $levels=[int[]]@(foreach($device in @($devices | Select-Object -First 4)){if($null -ne $device.Percent){[int]$device.Percent}else{-1}})
     $colors=[Drawing.Color[]]@($devices | Select-Object -First 4 | ForEach-Object Accent)
-    $bitmap=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render($levels,$colors,($settings.TrayMode -eq 'Combined'),($settings.TrayStyle -eq 'Percent'))
+    $size=[Windows.Forms.SystemInformation]::SmallIconSize.Width
+    $bitmap=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render($levels,$colors,($settings.TrayMode -eq 'Combined'),($settings.TrayStyle -eq 'Percent'),$size)
     try{
         $handle=$bitmap.GetHicon();$temporary=[Drawing.Icon]::FromHandle($handle)
         try{return $temporary.Clone()}finally{$temporary.Dispose();[PbmIcon]::DestroyIcon($handle) | Out-Null}
