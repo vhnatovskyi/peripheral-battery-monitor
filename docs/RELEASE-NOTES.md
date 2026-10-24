@@ -1,16 +1,15 @@
-## v0.1.1
+## v0.2.0
 
-- Fix checksum-manifest downloads when GitHub serves the asset as binary content.
-- One combined tray icon with separate green/blue battery rings, plus a lowest-percentage option.
-- Device window with mouse and keyboard cards, connection status, last-report time and manual refresh.
-- Settings for sign-in startup, low-battery notifications, threshold and update checks.
-- AJAZZ AJ139 V2 MC battery via its 2.4 GHz receiver.
-- Apple Magic Keyboard with Touch ID and Numeric Keypad (029F) battery via Bluetooth.
-- Passive battery-change listeners; no periodic battery queries.
-- Per-user Windows installer, portable ZIP and in-app release updates with SHA-256 validation.
+- Automatically discover additional Bluetooth and USB/HID devices through Windows' local device/battery properties.
+- Add an Other devices list, physical-container deduplication and an option to show devices without battery data.
+- Distinguish cached/unconfirmed battery readings from confirmed connections; never use disconnected or unconfirmed data for generic low-battery alerts.
+- Include confirmed additional devices in the combined tray indicator.
+- Keep dedicated AJ139 and Apple Magic Keyboard providers for their verified protocols.
+- Add discovery validation and a dashboard smoke test, including rendering many tray segments.
+- Preserve the one-icon dashboard, settings, per-user installer and checksum-validated release updates.
 
-Download **PeripheralBatteryMonitor-Setup-0.1.1.exe** to install, or extract the ZIP and run **PeripheralBatteryMonitor.exe**.
+Download **PeripheralBatteryMonitor-Setup-0.2.0.exe** to install, or extract the ZIP and run **PeripheralBatteryMonitor.exe**. Existing installations can use **Check for updates**.
 
-The binaries are unsigned. Windows may show an unknown-publisher notice. No third-party drivers or administrator rights are required. Settings and startup options can be changed from the dashboard.
+Generic discovery refreshes the Windows cache every 15 seconds; it does not send periodic battery commands to devices. Not every receiver exposes battery data. Direct generic BLE GATT subscriptions are not implemented yet. AJ139 battery remains supported over 2.4 GHz only; an additional Bluetooth Input 0x90 test was rejected on all its HID collections.
 
-Initial and manual battery reads were tested on both connected devices at 100%. Actual charge-change notifications have not yet been observed at a lower percentage, so firmware notification timing remains unconfirmed. AJ139 Bluetooth battery reading is unsupported. This initial version has no cloud account, telemetry, key logging or charging-state interpretation.
+The binaries are unsigned. No third-party driver or administrator rights are needed. Physical battery-change notification timing is not yet validated at a lower charge percentage. There is no key logging or telemetry.

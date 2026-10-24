@@ -15,7 +15,17 @@ Requires Windows 10/11 x64 with Windows PowerShell 5.1 and the built-in .NET Fra
 - **AJAZZ AJ139 V2 MC**, over its 2.4 GHz receiver (`A8A5:2255`). Green status ring.
 - **Apple Magic Keyboard with Touch ID and Numeric Keypad**, over Bluetooth (`004C:029F`). Blue status ring.
 
-Other models are not assumed compatible. AJ139 Bluetooth battery reading remains unsupported; the Apple keyboard's Bluetooth implementation is separate.
+Other Bluetooth and USB/HID devices are discovered automatically. Their percentages appear when Windows exposes usable battery data; proprietary protocols still require a device provider. The app cannot infer a receiver's radio frequency from a generic USB interface. AJ139 Bluetooth battery reading remains unsupported; the Apple keyboard's Bluetooth implementation is separate.
+
+## Automatic device discovery
+
+The **Other devices** list groups Windows device nodes by their physical container ID, avoids duplicates of the two specialized providers, and reads Windows battery properties without sending vendor commands to unknown hardware. It refreshes the **local Windows cache** every 15 seconds and on manual Refresh. This is separate from the passive AJ139/Apple listeners: it does not poll those devices over the radio.
+
+Battery data unavailable from Windows is not guessed. Enable **Show detected devices without battery data** in Settings to see unsupported devices as well. A confirmed disconnected device has no current percentage. If Windows cannot confirm a device's connection, an existing value is explicitly labeled **cached** and is excluded from low-battery alerts and the tray's lowest-percentage calculation. Device presence in the PnP tree is not treated as proof of an active Bluetooth link.
+
+The implementation uses System.Devices.BatteryLife plus the Windows Bluetooth battery-cache property. It does not yet implement direct generic BLE GATT/Battery Service subscriptions. When Windows does not publish battery data, a standard GATT or vendor-specific provider can be added later. Bluetooth version numbers and radio bands alone do not determine battery support; receiver firmware and exposed Windows interfaces do.
+
+Live enumeration found an Xbox Wireless Controller with a cached 100% value and an unconfirmed connection, plus a disconnected Xbox Wireless Headset. This validates discovery/cache handling, not universal compatibility with every device.
 
 ## Use
 
@@ -59,7 +69,7 @@ Build output goes into `dist/`: portable ZIP, setup EXE and SHA256SUMS.txt. A ma
 
 ## Validation and limits
 
-Both connected devices returned **100%** in live initial/manual queries. Parser tests cover unsolicited battery packets, zero/invalid percentages, truncated reports and unrelated messages. Installation tests cover a clean install, version upgrade, retention of the previous version and rejection of an incomplete package. Update tests cover version comparison, checksum mismatch and archive traversal.
+Both specialized devices returned **100%** in live initial/manual queries. Parser tests cover unsolicited battery packets, zero/invalid percentages, truncated reports and unrelated messages. Installation tests cover a clean install, version upgrade, retention of the previous version and rejection of an incomplete package. Update tests cover version comparison, checksum mismatch and archive traversal.
 
 A physical percentage drop has not yet been observed during validation, so unsolicited notification timing is not confirmed. A missing disconnect notification may leave the last reported value until Refresh/reconnection. Charging flags are not interpreted as charging-state UI. Bluetooth sleep behavior may vary by firmware. Automatic post-launch health-check rollback is not implemented.
 

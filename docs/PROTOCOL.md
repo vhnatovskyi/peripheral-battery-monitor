@@ -56,3 +56,17 @@ Tested: receiver discovery, live online status, a 100% battery reply, manual ref
 Supported Bluetooth identity: VID/company 004C, PID 029F. Select vendor collection FF00 / usage 0014, with input size 3 and output size 0. Query report 0x90 using HidD_GetInputReport on a query-only handle. Observed packet: `90 00 64`, meaning 100% (byte 2, decimal range 0–100). The middle byte is not interpreted. The passive listener accepts only three-byte reports whose first byte is 90 and whose percentage is at most 100. It opens this battery vendor collection, not the separate keyboard input collection.
 
 The keyboard provider has its own locked state and cancellation token. It queries once when a newly discovered interface is opened, and on manual Refresh; subsequent battery reports update the state without polling. Physical disconnection clears the percentage and restarts local interface discovery. Startup/manual queries were validated at 100%, and malformed/zero/unrelated reports are covered by parser tests. A real battery drop was not observed yet. If the keyboard does not push changes or signal a disconnect, the last reported value remains until manual refresh/reconnection.
+
+## Windows fallback provider
+
+`WindowsDeviceMonitor.cs` groups present Bluetooth/USB/HID nodes by DEVPKEY_Device_ContainerId, reads the documented System.Devices.BatteryLife property (49CD1F76-5626-4B17-A4E8-18B4AA1A2213 / 10), and checks the Windows Bluetooth battery-cache property (104EA319-6EE2-4701-BD47-8DDBF425BBE5 / 2). It accepts typed byte/DWORD values from 0 to 100, rejects unknown status 101 and missing properties, and excludes containers handled by specialized providers.
+
+This worker re-reads only Windows' local property store every 15 seconds or on Refresh. It does not actively scan the radio, send unknown vendor commands or query every peripheral directly. BluetoothGetDeviceInfo and available Windows connection properties are used when they can confirm state. Presence alone is not enough: unknown connection state is displayed as unconfirmed, and cached values are excluded from tray minima/alerts. Direct BLE GATT Battery Service discovery and notification subscription remain a future provider.
+
+Reference: https://learn.microsoft.com/en-us/windows/win32/properties/props-system-devices-batterylife
+Container grouping: https://learn.microsoft.com/en-us/windows-hardware/drivers/install/devpkey-device-containerid
+Windows Bluetooth cache key reference: https://github.com/fastfetch-cli/fastfetch/blob/dev/src/detection/bluetooth/bluetooth_windows.c
+
+## Additional AJ139 Bluetooth report check
+
+After the Apple keyboard's Input 90 report was verified, the same read-only request was tested on all three AJ139 Bluetooth HID collections. Keyboard and mouse collections rejected it with Win32 error 1; the consumer collection rejected it with error 87. HidP_GetValueCaps reported only movement, wheel and consumer controls, with no battery-strength value and no feature reports. This rules out reusing the keyboard's known report format; it does not prove that no undocumented vendor protocol could exist. No proprietary Bluetooth writes or firmware changes were attempted.
