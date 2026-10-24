@@ -1,3 +1,10 @@
+## v0.5.1
+
+- Show the application version in the window title next to the system window controls.
+- Disable window maximization and reduce the default window and device-card sizes.
+- Stop device icon flicker by retaining the existing native image source during charge/status updates.
+- Retain the compact framework-dependent deployment from v0.5.0.
+
 ## v0.5.0 — Native MAUI desktop application
 
 - Replace the PowerShell/WinForms dashboard with a native .NET MAUI Windows interface, including adaptive device cards and dedicated Settings, Updates and About pages.

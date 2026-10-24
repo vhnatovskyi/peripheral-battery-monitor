@@ -35,7 +35,8 @@ public sealed class AppRuntime
     public void Start(Window window)
     {
         nativeWindow=(Microsoft.UI.Xaml.Window)window.Handler!.PlatformView!;
-        nativeWindow.Title="Peripheral Battery Monitor";
+        nativeWindow.Title="Peripheral Battery Monitor v"+Settings.Version;
+        if(nativeWindow.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter)presenter.IsMaximizable=false;
         string icon=Path.Combine(AppContext.BaseDirectory,"app-icon.ico");
         if(File.Exists(icon))nativeWindow.AppWindow.SetIcon(icon);
         nativeWindow.AppWindow.Closing+=(_,args)=>{if(!exiting){args.Cancel=true;nativeWindow.AppWindow.Hide();}};

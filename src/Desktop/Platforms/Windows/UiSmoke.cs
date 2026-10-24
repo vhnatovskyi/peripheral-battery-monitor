@@ -15,6 +15,16 @@ internal static class UiSmoke
         {
             await Task.Delay(1400);
             var shell=(AppShell)Shell.Current;
+            if(window.AppWindow.Presenter is Microsoft.UI.Windowing.OverlappedPresenter presenter && presenter.IsMaximizable)
+                throw new InvalidOperationException("Window maximization should be disabled");
+            if(!window.Title.Contains(Services.AppRuntime.Current.Settings.Version))throw new InvalidOperationException("Version missing from title");
+            var testCard=new Views.DeviceCardView();
+            var sample=new Services.DeviceReading("test","Mouse","Bluetooth",92,"#55DEAD","Demo",DateTime.UtcNow,null);
+            testCard.Update(sample);
+            var image=(Image)typeof(Views.DeviceCardView).GetField("icon",System.Reflection.BindingFlags.NonPublic|System.Reflection.BindingFlags.Instance)!.GetValue(testCard)!;
+            var source=image.Source;
+            for(int value=91;value>=80;value--)testCard.Update(sample with { Percent=value });
+            if(!ReferenceEquals(source,image.Source))throw new InvalidOperationException("State update restarted the device icon load");
             foreach(string route in new[]{"devices","settings","about","releases"})
             {
                 shell.Navigate(route);await Task.Delay(route=="releases"?1800:600);

@@ -5,23 +5,26 @@ namespace PeripheralBatteryMonitor.Desktop.Views;
 
 internal sealed class DeviceCardView : Border
 {
-    private readonly Image icon=new() { WidthRequest=28,HeightRequest=28 };
-    private readonly Label name=Design.Label("",14,true),transport=Design.Hint(""),percent=Design.Label("",36,true),time=Design.Hint("");
+    private readonly Image icon=new() { WidthRequest=24,HeightRequest=24 };
+    private readonly Label name=Design.Label("",13,true),transport=Design.Hint(""),percent=Design.Label("",30,true),time=Design.Hint("");
     private readonly ProgressBar charge=new() { HeightRequest=4,BackgroundColor=Color.FromArgb("#344457") };
     private readonly ImageButton disconnect=new() { Source="unplug.png",WidthRequest=28,HeightRequest=28,Padding=6,BackgroundColor=Colors.Transparent };
     private DeviceReading? reading;
     public DeviceCardView()
     {
-        StrokeShape=new RoundRectangle { CornerRadius=16 };Stroke=Color.FromArgb("#2C3A4D");BackgroundColor=Color.FromArgb("#1B2635");Padding=16;HeightRequest=184;
-        var head=new Grid { ColumnDefinitions=[new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)],ColumnSpacing=12 };
+        StrokeShape=new RoundRectangle { CornerRadius=12 };Stroke=Color.FromArgb("#2C3A4D");BackgroundColor=Color.FromArgb("#1B2635");Padding=12;HeightRequest=144;
+        transport.FontSize=11;time.FontSize=10;
+        var head=new Grid { ColumnDefinitions=[new(GridLength.Auto),new(GridLength.Star),new(GridLength.Auto)],ColumnSpacing=8 };
         head.Add(icon);head.Add(new VerticalStackLayout { Spacing=3,Children={name,transport} },1);head.Add(disconnect,2);
         name.LineBreakMode=LineBreakMode.TailTruncation;name.MaxLines=1;
-        var stack=Design.Stack(head,percent,charge,time);stack.Spacing=8;Content=stack;
+        var stack=Design.Stack(head,percent,charge,time);stack.Spacing=5;Content=stack;
         disconnect.Clicked+=Disconnect;
     }
     public void Update(DeviceReading value)
     {
-        reading=value;name.Text=value.Name;transport.Text=value.Transport;icon.Source=value.Kind+".png";
+        // Replacing FileImageSource on every state tick restarts the native image load.
+        if(reading==null || reading.Kind!=value.Kind)icon.Source=value.Kind+".png";
+        reading=value;name.Text=value.Name;transport.Text=value.Transport;
         percent.Text=value.Percent is int level?level+"%":"—";
         charge.Progress=(value.Percent??0)/100d;charge.ProgressColor=Color.FromArgb(value.Accent);
         time.Text=value.Percent.HasValue?Design.T("Оновлено ","Updated ")+value.UpdatedUtc.ToLocalTime().ToString("HH:mm"):Design.T("Заряд недоступний","Battery unavailable");

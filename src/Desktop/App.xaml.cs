@@ -13,7 +13,7 @@ public partial class App : Application
 
 	protected override Window CreateWindow(IActivationState? activationState)
 	{
-        var window=new Window(new AppShell()) { Title="Peripheral Battery Monitor", Width=880,Height=620,MinimumWidth=620,MinimumHeight=440 };
+        var window=new Window(new AppShell()) { Title="Peripheral Battery Monitor v"+Services.AppRuntime.Current.Settings.Version, Width=760,Height=500,MinimumWidth=600,MinimumHeight=400 };
         window.Created+=(_,_)=>Services.AppRuntime.Current.Start(window);
         return window;
 	}

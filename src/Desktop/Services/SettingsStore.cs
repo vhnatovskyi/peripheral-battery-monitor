@@ -29,7 +29,7 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.5.0";
+    public string Version { get; } = "0.5.1";
     public SettingsStore()
     {
         try { Value = JsonSerializer.Deserialize(File.ReadAllText(Path.Combine(StateRoot,"settings.json")),AppJsonContext.Default.MonitorSettings) ?? new(); }

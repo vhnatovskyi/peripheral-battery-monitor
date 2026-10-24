@@ -10,8 +10,8 @@
     <Nullable>enable</Nullable>
     <ApplicationTitle>Peripheral Battery Monitor</ApplicationTitle>
     <ApplicationId>io.github.vhnatovskyi.peripheralbatterymonitor</ApplicationId>
-    <ApplicationDisplayVersion>0.5.0</ApplicationDisplayVersion>
-    <ApplicationVersion>50</ApplicationVersion>
+    <ApplicationDisplayVersion>0.5.1</ApplicationDisplayVersion>
+    <ApplicationVersion>51</ApplicationVersion>
     <WindowsPackageType>None</WindowsPackageType>
     <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
     <SelfContained>false</SelfContained>
