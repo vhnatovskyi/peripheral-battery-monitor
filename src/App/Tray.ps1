@@ -256,7 +256,7 @@ function Show-Settings {
     $mode=New-SettingsCombo @((L 'Combined (up to 4)'),(L 'Separate icons')) 16 66 212
     $mode.SelectedIndex=if($settings.TrayMode -eq 'Separate'){1}else{0}
     $appearance.Controls.Add((New-Label (L 'Tray appearance') 16 111 212 20 9))
-    $style=New-SettingsCombo @((L 'Battery symbols'),(L 'Lowest percentage')) 16 134 212
+    $style=New-SettingsCombo @((L 'Battery and percentage'),(L 'Percentage emphasis')) 16 134 212
     $style.SelectedIndex=if($settings.TrayStyle -eq 'Percent'){1}else{0}
     $appearance.Controls.AddRange(@($mode,$style))
     $alerts=New-Object Windows.Forms.CheckBox;$alerts.Text=L 'Low battery notifications';$alerts.SetBounds(16,13,310,26);$alerts.Checked=$settings.LowBatteryAlerts
@@ -298,7 +298,8 @@ $tray.Add_DoubleClick({Show-Window})
 
 function New-BatteryIcon($devices){
     $levels=[int[]]@(foreach($device in @($devices | Select-Object -First 4)){if($null -ne $device.Percent){[int]$device.Percent}else{-1}})
-    $bitmap=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render($levels,($settings.TrayStyle -eq 'Percent'),$settings.LowBatteryThreshold)
+    $colors=[Drawing.Color[]]@($devices | Select-Object -First 4 | ForEach-Object Accent)
+    $bitmap=[PeripheralBatteryMonitor.UI.TrayBatteryPainter]::Render($levels,$colors,($settings.TrayMode -eq 'Combined'),($settings.TrayStyle -eq 'Percent'))
     try{
         $handle=$bitmap.GetHicon();$temporary=[Drawing.Icon]::FromHandle($handle)
         try{return $temporary.Clone()}finally{$temporary.Dispose();[PbmIcon]::DestroyIcon($handle) | Out-Null}

@@ -29,7 +29,7 @@ Live validation confirmed an Xbox Wireless Headset over BLE, including a success
 
 ## Use
 
-Double-click the tray icon to open the dashboard. Tray icons use horizontal battery symbols inspired by Windows 11. The combined icon shows up to four devices; its tooltip lists their battery levels and connection types. Separate mode gives every connected device its own icon. The dashboard shows device cards, connection status and the last battery-report time. **About** includes the app version, developer, contact email, LinkedIn and repository links. Closing the dashboard keeps monitoring active; choose **Exit** in the tray menu to stop the app.
+Double-click the tray icon to open the dashboard. Separate tray icons use device-colored horizontal batteries with a percentage below each battery, inspired by Windows 11. The combined icon is a circle with up to four device-colored battery sections and the lowest known percentage below. Its tooltip lists all four devices with battery levels and connection types. The dashboard shows device cards, connection status and the last battery-report time. **About** includes the app version, developer, contact email, LinkedIn and repository links. Closing the dashboard keeps monitoring active; choose **Exit** in the tray menu to stop the app.
 
 **Settings** groups language (Ukrainian/English), combined/separate tray mode, battery symbols or lowest percentage, notifications, Windows startup and release checking. The window uses a standard Windows toolbar. Startup is disabled by default. Settings are kept in your local Windows profile, independently of application versions.
 
