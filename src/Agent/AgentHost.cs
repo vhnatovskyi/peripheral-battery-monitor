@@ -33,10 +33,12 @@ internal sealed class AgentHost:IDisposable
     private string route="devices";
     private IntPtr uiOwner;
     private int uiProcessId;
+    private bool uiDetached;
     private Process? uiProcess;
     internal string PipeName=>pipeName;
     internal MonitorSettings Preferences=>settings.Value;
     internal NativeBatteryWidget? Widget=>widget;
+    internal bool HasUiWindow=>uiOwner!=IntPtr.Zero;
     internal AgentHost(bool selfTest=false)
     {
         test=selfTest;pipeName=test?AgentWire.PipeName+".Test."+Guid.NewGuid().ToString("N"):AgentWire.PipeName;
@@ -61,6 +63,7 @@ internal sealed class AgentHost:IDisposable
             if(message!=0x113 || exiting)return;
             if(exitEvent?.WaitOne(0)==true){Quit();return;}
             if(showEvent?.WaitOne(0)==true)ShowUi();
+            CheckUiLifetime();
             widget?.Tick();
             if(DateTime.UtcNow-lastRead>=TimeSpan.FromMilliseconds(500))
             {
@@ -87,9 +90,19 @@ internal sealed class AgentHost:IDisposable
     }
     private IntPtr Owner()
     {
-        if(uiOwner==IntPtr.Zero)return IntPtr.Zero;
+        if(uiDetached || uiOwner==IntPtr.Zero)return IntPtr.Zero;
         GetWindowThreadProcessId(uiOwner,out uint actual);
         return actual==(uint)uiProcessId?uiOwner:IntPtr.Zero;
+    }
+    private void CheckUiLifetime()
+    {
+        if(uiOwner==IntPtr.Zero)return;
+        GetWindowThreadProcessId(uiOwner,out uint actual);
+        if(actual==(uint)uiProcessId)return;
+        uiOwner=IntPtr.Zero;uiProcessId=0;uiDetached=false;
+        // Restore after the HWND has actually gone, rather than before its
+        // closing/activation transitions. The widget belongs to this process.
+        UpdateWidget();widget?.RestoreVisibility();
     }
     private void UpdateWidget()
     {
@@ -156,7 +169,7 @@ internal sealed class AgentHost:IDisposable
                     case "settings":Apply(request.Settings??throw new IOException("Settings missing"));break;
                     case "refresh":devices?.Refresh();break;
                     case "move-widget":widget?.BeginMove();break;
-                    case "detach-ui":if(request.ProcessId==uiProcessId){uiOwner=IntPtr.Zero;uiProcessId=0;}break;
+                    case "detach-ui":if(request.ProcessId==uiProcessId){uiDetached=true;widget?.SetMoving(false);}break;
                     default:throw new IOException("Unknown agent command");
                 }
                 var current=Volatile.Read(ref snapshot);
@@ -173,7 +186,7 @@ internal sealed class AgentHost:IDisposable
         if(handle==uiOwner && request.ProcessId==uiProcessId)return;
         using var process=Process.GetProcessById(request.ProcessId);
         if(!string.Equals(process.MainModule?.FileName,Path.Combine(AppContext.BaseDirectory,"PeripheralBatteryMonitor.Desktop.exe"),StringComparison.OrdinalIgnoreCase))throw new IOException("Unexpected UI process");
-        uiOwner=handle;uiProcessId=request.ProcessId;
+        uiOwner=handle;uiProcessId=request.ProcessId;uiDetached=false;
     }
     private void TrayAction(string command)
     {

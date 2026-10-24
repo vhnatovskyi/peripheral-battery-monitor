@@ -1,3 +1,9 @@
+## v0.6.1
+
+- Explicitly restore the enabled widget's visibility and topmost position after the MAUI window has actually closed. Keep dragging locked and clicks passing through. A disabled widget remains disabled.
+- Track UI window lifetime in the background agent even after the UI detaches, so final window-closing transitions cannot leave the widget hidden.
+- Extend the integration test to start with the widget already enabled, deliberately hide it while the UI is open, then verify its visibility after UI exit and preserve the disabled-widget choice.
+
 ## v0.6.0
 
 - Move monitoring, tray icons, low-battery notifications and the layered widget into a lightweight .NET background agent without MAUI or WinUI dependencies. Start the MAUI dashboard on demand and terminate its process when its window closes, releasing cached pages and UI resources while monitoring continues.

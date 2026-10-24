@@ -23,7 +23,7 @@ public sealed class SettingsStore
         }
     }
     public MonitorSettings Value { get; private set; } = new();
-    public string Version { get; } = "0.6.0";
+    public string Version { get; } = "0.6.1";
     internal void Apply(MonitorSettings settings) => Value=settings.Copy();
     public SettingsStore()
     {

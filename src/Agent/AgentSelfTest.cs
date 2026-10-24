@@ -56,10 +56,21 @@ internal static class AgentSelfTest
             await Task.Delay(450);
             if(Environment.GetEnvironmentVariable("PBM_AGENT_TEST_UI")=="1")
             {
+                settings.WidgetEnabled=true;
+                await host.RequestForTest(new(){Command="settings",Settings=settings});
+                await OnThread(host,()=>Assert(host.Widget is { IsVisible:true },"Widget visible before opening UI"));
                 var start=new System.Diagnostics.ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"PeripheralBatteryMonitor.Desktop.exe")){UseShellExecute=false,CreateNoWindow=true};
                 start.ArgumentList.Add("--agent-client");start.ArgumentList.Add("--agent-integration-test");
                 start.Environment["PBM_AGENT_PIPE_NAME"]=host.PipeName;start.Environment["PBM_AGENT_TEST_ID"]=Guid.NewGuid().ToString("N");
                 using var ui=System.Diagnostics.Process.Start(start)!;
+                bool attached=false;
+                for(int attempt=0;attempt<40 && !attached;attempt++)
+                {
+                    await OnThread(host,()=>attached=host.HasUiWindow);
+                    if(!attached)await Task.Delay(50);
+                }
+                Assert(attached,"UI window registered with agent");
+                await OnThread(host,()=>{host.Widget!.SetVisible(false);Assert(!host.Widget.IsVisible,"Hidden-widget regression setup");});
                 try{await ui.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(25));}catch{if(!ui.HasExited)ui.Kill();throw;}
                 string uiResult=File.ReadAllText(Path.Combine(SettingsStore.StateRoot,"agent-ui-result.txt"));
                 Assert(ui.ExitCode==0 && uiResult.StartsWith("PASS:"),uiResult);
@@ -67,6 +78,12 @@ internal static class AgentSelfTest
                 var final=await host.RequestForTest(new());
                 Assert(final.Snapshot!.Settings.WidgetOpacity==37 && new SettingsStore().Value.WidgetOpacity==37,"Flush final setting on UI close");
                 Assert(final.Snapshot.Devices.Length==3,"Agent remains active after UI close");
+                await OnThread(host,()=>
+                {
+                    if(Environment.GetEnvironmentVariable("PBM_AGENT_TEST_WIDGET_OFF")=="1")
+                        Assert(!host.Preferences.WidgetEnabled && host.Widget==null,"Disabled widget stays disabled after UI close");
+                    else Assert(host.Preferences.WidgetEnabled && host.Widget is { IsVisible:true,ClickThrough:true,IsAlwaysOnTop:true },"Widget remains visible, topmost and click-through after UI close");
+                });
             }
             Directory.CreateDirectory(SettingsStore.StateRoot);
             await File.WriteAllTextAsync(result,"PASS: real agent IPC, live settings, disk persistence, transparent widget, layouts, focus guard, independent visibility and malformed-client recovery");

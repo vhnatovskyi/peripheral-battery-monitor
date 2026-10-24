@@ -20,7 +20,9 @@ internal static class AgentClientSmoke
             var stored=new SettingsStore().Value;
             if(stored.Language!="en" || stored.WidgetOrientation!="Vertical" || stored.WidgetOpacity!=25)throw new InvalidOperationException("UI settings did not reach the agent and disk");
             // Close while a final change is in flight; the closing handler must flush it.
-            settings=runtime.Settings.Value.Copy();settings.WidgetOpacity=37;runtime.ChangeSettings(settings);
+            settings=runtime.Settings.Value.Copy();settings.WidgetOpacity=37;
+            if(Environment.GetEnvironmentVariable("PBM_AGENT_TEST_WIDGET_OFF")=="1")settings.WidgetEnabled=false;
+            runtime.ChangeSettings(settings);
             File.WriteAllText(path,"PASS: MAUI receives batteries, applies settings through IPC and closes through its normal window handler");
             window.Close();
         }

@@ -30,6 +30,7 @@ internal class NativeBatteryWidget : IDisposable
     private DateTime moved;
     private uint dpi;
     internal bool IsMoving { get; private set; }
+    internal bool IsVisible=>IsWindowVisible(handle);
     internal int DeviceCount { get; private set; }
     internal bool ClickThrough=>(GetWindowLong(handle,-20)&0x20)!=0;
     internal bool IsAlwaysOnTop=>(GetWindowLong(handle,-20)&8)!=0;
@@ -176,6 +177,12 @@ internal class NativeBatteryWidget : IDisposable
     internal Bitmap RenderPreview()=>(Bitmap)surface!.Clone();
     internal void MoveTo(int x,int y)=>SetWindowPos(handle,IntPtr.Zero,x,y,0,0,0x15);
     internal void Raise()=>SetWindowPos(handle,new IntPtr(-1),0,0,0,0,0x13);
+    internal void SetVisible(bool visible)=>ShowWindow(handle,visible?4:0);
+    internal void RestoreVisibility()
+    {
+        if(disposed)return;
+        SetMoving(false);SetVisible(true);Raise();
+    }
     private static GraphicsPath Rounded(float width,float height,float radius)
     {
         var path=new GraphicsPath();float d=radius*2;
@@ -215,6 +222,7 @@ internal class NativeBatteryWidget : IDisposable
     [StructLayout(LayoutKind.Sequential)]private struct NativeSize(int width,int height) { public int Width=width,Height=height; }
     [StructLayout(LayoutKind.Sequential,Pack=1)]private struct Blend { public byte Operation,Flags,ConstantAlpha,AlphaFormat; }
     [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)]private static extern ushort RegisterClassEx(ref WindowClass wc);
+    [DllImport("user32.dll")]private static extern bool IsWindowVisible(IntPtr window);
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern bool UnregisterClass(string name,IntPtr instance);
     [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]private static extern IntPtr GetModuleHandle(string? name);
     [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)]private static extern IntPtr CreateWindowEx(uint extended,string name,string title,uint style,int x,int y,int width,int height,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr param);
