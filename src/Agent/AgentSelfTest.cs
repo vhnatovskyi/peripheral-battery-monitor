@@ -34,6 +34,22 @@ internal static class AgentSelfTest
         var classic=new Aj139Battery.BluetoothEndpoint {Id=endpoint.Id,Name=endpoint.Name,Connected=false};
         windows.SetEndpoints([classic,endpoint]);
         Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Inactive Classic endpoint does not hide active BLE keyboard");
+        windows.SetEndpoints([]);
+        Assert(!service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Missing endpoint clears keyboard after successful empty enumeration");
+        Assert(!keyboard.Snapshot().Online,"Missing endpoint resets HID session state");
+        windows.SetEndpoints([endpoint]);
+        service.Snapshot();
+        typeof(Aj139Battery.MagicKeyboardMonitor).GetMethod("Process",flags)!.Invoke(keyboard,[new byte[]{0x90,0,75},3]);
+        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard" && d.Percent==75),"Keyboard returns after disappearing from inventory");
+        var native=new Aj139Battery.DiscoveredDevice {Id=endpoint.Id,Name="Bluetooth Peripheral Device",MagicKeyboard=true,Connected=true};
+        typeof(Aj139Battery.WindowsDeviceMonitor).GetField("knownDevices",flags)!.SetValue(windows,new[]{native});
+        endpoint.Name="";endpoint.Address="001122334455";windows.SetEndpoints([endpoint]);
+        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard" && d.Address==endpoint.Address),"Unnamed Bluetooth endpoint resolves by keyboard hardware container");
+        endpoint.Connected=false;windows.SetEndpoints([endpoint]);
+        Assert(!service.Snapshot().Any(d=>d.Id=="magic-keyboard"),"Unnamed disconnected endpoint overrides stale native connection");
+        endpoint.Connected=true;windows.SetEndpoints([endpoint]);service.Snapshot();
+        typeof(Aj139Battery.MagicKeyboardMonitor).GetMethod("Process",flags)!.Invoke(keyboard,[new byte[]{0x90,0,74},3]);
+        Assert(service.Snapshot().Any(d=>d.Id=="magic-keyboard" && d.Percent==74),"Unnamed keyboard reconnects with fresh charge");
     }
     internal static async Task RunAsync(AgentHost host)
     {

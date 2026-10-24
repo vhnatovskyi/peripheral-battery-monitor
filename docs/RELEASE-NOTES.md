@@ -1,3 +1,10 @@
+## v0.6.5
+
+- Match Magic Keyboard Bluetooth connection state and address by its hardware identity and device container, including unnamed Bluetooth endpoints and the generic Windows name "Bluetooth Peripheral Device".
+
+- Treat a keyboard missing from a successful Windows Bluetooth enumeration as disconnected, rather than retaining its last charge as an unknown connection. Preserve the unknown state before the initial enumeration.
+- Test complete endpoint disappearance and subsequent reconnection, in addition to explicit disconnected endpoints.
+
 ## v0.6.3
 
 - Restart the keyboard HID subscription after Bluetooth connection changes, including when the old read remains pending. Clear the disconnected charge and reject reports from the previous connection.

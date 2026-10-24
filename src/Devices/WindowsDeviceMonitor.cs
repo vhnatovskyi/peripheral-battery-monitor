@@ -21,6 +21,7 @@ namespace Aj139Battery
         public string BluetoothAddress { get; internal set; }
         internal bool Eligible;
         internal bool Specialized;
+        internal bool MagicKeyboard;
         internal int NameScore;
         internal DiscoveredDevice Copy() { return (DiscoveredDevice)MemberwiseClone(); }
     }
@@ -67,6 +68,7 @@ namespace Aj139Battery
         private long refreshVersion;
         private volatile bool stopping;
         private BluetoothEndpoint[] endpoints = new BluetoothEndpoint[0];
+        private bool endpointsObserved;
         private DiscoveredDevice[] knownDevices = new DiscoveredDevice[0];
         public string LastError { get; private set; }
         public bool IsStopped { get { return stopping; } }
@@ -77,6 +79,7 @@ namespace Aj139Battery
             lock (sync)
             {
                 endpoints = value;
+                endpointsObserved = true;
                 // Bluetooth reports update the cached inventory directly. They
                 // do not require another complete SetupAPI enumeration.
                 PublishDevices();
@@ -86,25 +89,28 @@ namespace Aj139Battery
         {
             lock(sync)
             {
+                var known = knownDevices.Where(d => MatchesKnown(d, id, name)).ToArray();
                 var match = endpoints.FirstOrDefault(e => e.Connected && !String.IsNullOrEmpty(e.Address) &&
-                    (e.Id == id || (!String.IsNullOrEmpty(name) && !String.IsNullOrEmpty(e.Name) && e.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)));
+                    (MatchesDevice(e.Id, e.Name, id, name) || known.Any(d => String.Equals(d.Id, e.Id, StringComparison.OrdinalIgnoreCase))));
                 if(match != null) return match.Address;
-                return knownDevices.Where(d => !String.IsNullOrEmpty(d.BluetoothAddress) &&
-                    !String.IsNullOrEmpty(name) && d.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0).Select(d => d.BluetoothAddress).FirstOrDefault();
+                return known.Where(d => !String.IsNullOrEmpty(d.BluetoothAddress)).Select(d => d.BluetoothAddress).FirstOrDefault();
             }
         }
         public bool? BluetoothConnected(string id, string name)
         {
             lock (sync)
             {
-                var known = knownDevices.Where(d => MatchesDevice(d.Id, d.Name, id, name)).ToArray();
+                var known = knownDevices.Where(d => MatchesKnown(d, id, name)).ToArray();
                 var matches = endpoints.Where(e => MatchesDevice(e.Id, e.Name, id, name) ||
                     known.Any(d => String.Equals(d.Id, e.Id, StringComparison.OrdinalIgnoreCase))).ToArray();
                 // A cached HID percentage is not evidence of a live Bluetooth link.
                 // Classic and BLE endpoints can describe the same physical device.
                 if (matches.Length > 0) return matches.Any(e => e.Connected);
                 var confirmed = known.Where(d => d.Connected.HasValue).ToArray();
-                return confirmed.Length > 0 ? (bool?)confirmed.Any(d => d.Connected == true) : null;
+                if (confirmed.Length > 0) return confirmed.Any(d => d.Connected == true);
+                // A successful empty enumeration is different from not having
+                // enumerated yet. Windows can remove an unplugged endpoint entirely.
+                return endpointsObserved ? (bool?)false : null;
             }
         }
         private static bool MatchesDevice(string candidateId, string candidateName, string id, string name)
@@ -112,6 +118,10 @@ namespace Aj139Battery
             return String.Equals(candidateId, id, StringComparison.OrdinalIgnoreCase) ||
                 (!String.IsNullOrEmpty(name) && !String.IsNullOrEmpty(candidateName) &&
                     candidateName.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+        private static bool MatchesKnown(DiscoveredDevice device, string id, string name)
+        {
+            return (id == "magic-keyboard" && device.MagicKeyboard) || MatchesDevice(device.Id, device.Name, id, name);
         }
         public long Version { get { lock (sync) return version; } }
         public DiscoveredDevice[] Snapshot() { lock (sync) return devices.ToArray(); }
@@ -267,6 +277,7 @@ namespace Aj139Battery
                     { device = new DiscoveredDevice { Id = groupId, Name = name, Transport = bluetooth ? "Bluetooth" : "USB / receiver", CheckedUtc = DateTime.UtcNow }; groups[groupId] = device; }
                     if (score > device.NameScore) { device.Name = name; device.NameScore = score; }
                     device.Specialized |= WindowsBatteryProtocol.IsSpecialized(id, name);
+                    device.MagicKeyboard |= id.IndexOf("vid&0001004c_pid&029f", StringComparison.OrdinalIgnoreCase) >= 0;
                     var percent = Battery(set, ref info, new Key("104EA319-6EE2-4701-BD47-8DDBF425BBE5", 2)) ?? Battery(set, ref info, new Key("49CD1F76-5626-4B17-A4E8-18B4AA1A2213", 10));
                     if (percent.HasValue) device.Percent = percent;
                     var connected = Connected(set, ref info); if (connected.HasValue) device.Connected = connected;

@@ -39,6 +39,9 @@ Assert ($native[0].Connected -eq $true -and $native[0].Percent -eq 83) 'Bluetoot
 Assert ($disconnected[0].Connected -eq $false -and $null -eq $disconnected[0].Percent) 'Cached disconnect update lost'
 $monitor=New-Object Aj139Battery.WindowsDeviceMonitor
 try {
+    Assert ($null -eq $monitor.BluetoothConnected('magic-keyboard','Magic Keyboard')) 'Initial connection must remain unknown before enumeration'
+    $monitor.SetEndpoints(@())
+    Assert ($monitor.BluetoothConnected('magic-keyboard','Magic Keyboard') -eq $false) 'Successful empty inventory must disconnect missing keyboard'
     $ble.Connected=$true;$ble.Percent=83
     $monitor.SetEndpoints(@($ble))
     Assert ($monitor.Snapshot()[0].Percent -eq 83) 'Bluetooth update requires a hardware rescan'
