@@ -21,4 +21,13 @@ function Assert-PbmChecksum([string]$Path,[string]$Manifest,[string]$Name) {
     if(-not $match.Success){throw 'Checksum missing from release.'}
     if((Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -ne $match.Groups[1].Value){throw 'Release checksum mismatch.'}
 }
-Export-ModuleMember -Function ConvertTo-PbmVersion,Test-PbmArchive,Assert-PbmChecksum
+function Get-PbmCompatibleReleases($Releases){
+    $valid=@(foreach($release in $Releases){
+        if($release.draft -or $release.prerelease -or $release.tag_name -notmatch '^v?\d+\.\d+\.\d+$'){continue}
+        $version=ConvertTo-PbmVersion $release.tag_name
+        $names=@($release.assets | ForEach-Object name)
+        if($names -contains "PeripheralBatteryMonitor-$version-win-x64.zip" -and $names -contains 'SHA256SUMS.txt'){$release}
+    })
+    return @($valid | Sort-Object {ConvertTo-PbmVersion $_.tag_name} -Descending)
+}
+Export-ModuleMember -Function ConvertTo-PbmVersion,Test-PbmArchive,Assert-PbmChecksum,Get-PbmCompatibleReleases

@@ -24,7 +24,11 @@ try{
     $rejected=$false;try{& (Join-Path $bad 'installer/Install.ps1') -PackageRoot $bad -InstallRoot $root -NoLaunch -NoIntegration}catch{$rejected=$true}
     if(-not $rejected){throw 'Broken package accepted'}
     if((Get-Content -Raw (Join-Path $root 'current.txt')).Trim() -ne '99.0.0'){throw 'Broken package changed active version'}
-    'Install, upgrade, retained version and invalid-package tests passed'
+    & (Join-Path $package 'installer/Install.ps1') -PackageRoot $package -InstallRoot $root -NoLaunch -NoIntegration
+    if((Get-Content -Raw (Join-Path $root 'current.txt')).Trim() -ne $version){throw 'Rollback pointer incorrect'}
+    if((Get-Content -Raw (Join-Path $root 'previous.txt')).Trim() -ne '99.0.0'){throw 'Rollback did not retain previous pointer'}
+    if((Get-FileHash -LiteralPath $settings).Hash -ne $settingsHash){throw 'Rollback changed settings'}
+    'Install, upgrade, rollback, retained version and invalid-package tests passed'
 }finally{
     $prefix=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')+'\PbmInstallTests-'
     if(([IO.Path]::GetFullPath($temporary)).StartsWith($prefix,[StringComparison]::OrdinalIgnoreCase)){Remove-Item -LiteralPath $temporary -Recurse -Force}

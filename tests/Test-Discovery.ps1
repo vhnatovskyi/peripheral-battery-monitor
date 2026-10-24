@@ -17,3 +17,14 @@ if($devices){
     Assert (@($devices | Where-Object {$_.Connected -eq $false -and $null -ne $_.Percent}).Count -eq 0) 'Disconnected device has a current percentage'
 }
 'Discovery parser and local enumeration tests passed'
+
+$classic=New-Object Aj139Battery.BluetoothEndpoint
+$classic.Id='test-headset';$classic.Name='Test headset';$classic.Connected=$false
+$ble=New-Object Aj139Battery.BluetoothEndpoint
+$ble.Id='test-headset';$ble.Name='Test headset';$ble.Connected=$true;$ble.Percent=83;$ble.UpdatedUtc=[DateTime]::UtcNow
+$merged=[Aj139Battery.WindowsDeviceMonitor]::MergeEndpoints(@(),@($classic,$ble))
+Assert ($merged.Count -eq 1 -and $merged[0].Connected -and $merged[0].Percent -eq 83) 'Inactive Classic endpoint hid active BLE headset'
+$ble.Connected=$false
+$merged=[Aj139Battery.WindowsDeviceMonitor]::MergeEndpoints(@(),@($classic,$ble))
+Assert ($merged[0].Connected -eq $false -and $null -eq $merged[0].Percent) 'Disconnected headset retained current battery'
+'Dual-mode Bluetooth connection regression tests passed'

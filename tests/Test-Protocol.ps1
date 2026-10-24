@@ -26,6 +26,21 @@ $packet=[Aj139Battery.Protocol]::Request(0x30)
 Assert ([BitConverter]::ToString($packet,0,11) -eq '00-55-30-A5-0B-2E-01-01-00-00-00') 'Battery request incorrect'
 'Protocol tests passed'
 
+$filter=New-Object Aj139Battery.BatteryReportFilter
+$now=[DateTime]::UtcNow
+Assert ($filter.Accept(97,0,$now)) 'Initial battery rejected'
+Assert (-not $filter.Accept(100,0,$now.AddSeconds(1))) 'Transient 100% spike accepted'
+Assert (-not $filter.Accept(100,0,$now.AddSeconds(2))) 'Duplicate spike accepted'
+Assert ($filter.Accept(97,0,$now.AddSeconds(3))) 'Actual battery return rejected'
+Assert ($filter.Accept(96,0,$now.AddSeconds(4))) 'Discharge delayed'
+Assert ($filter.Accept(100,1,$now.AddSeconds(5))) 'Explicit charging report delayed'
+$filter.Reset()
+Assert ($filter.Accept(97,0,$now)) 'Reconnect baseline rejected'
+Assert (-not $filter.Accept(100,0,$now.AddSeconds(1))) 'Rise not confirmed'
+Assert (-not $filter.Accept(100,0,$now.AddSeconds(10))) 'Rise confirmed too early'
+Assert ($filter.Accept(100,0,$now.AddSeconds(22))) 'Sustained new level never accepted'
+'Mouse battery stability regression tests passed'
+
 
 $keyboardReport = [byte[]](0x90,0,64)
 Assert ([Aj139Battery.MagicKeyboardProtocol]::TryBattery($keyboardReport,3,[ref]$value) -and $value -eq 64) 'Magic Keyboard percentage offset incorrect'

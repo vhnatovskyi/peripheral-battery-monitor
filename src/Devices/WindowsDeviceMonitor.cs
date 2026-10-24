@@ -18,9 +18,20 @@ namespace Aj139Battery
         public bool? Connected { get; internal set; }
         public string Status { get; internal set; }
         public DateTime CheckedUtc { get; internal set; }
+        public string BluetoothAddress { get; internal set; }
         internal bool Eligible;
         internal bool Specialized;
         internal int NameScore;
+    }
+
+    public sealed class BluetoothEndpoint
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public bool Connected { get; set; }
+        public int? Percent { get; set; }
+        public DateTime UpdatedUtc { get; set; }
+        public string Address { get; set; }
     }
 
     public static class WindowsBatteryProtocol
@@ -52,6 +63,26 @@ namespace Aj139Battery
         private Task worker;
         private DiscoveredDevice[] devices = new DiscoveredDevice[0];
         private long version;
+        private long refreshVersion;
+        private volatile bool stopping;
+        private BluetoothEndpoint[] endpoints = new BluetoothEndpoint[0];
+        public string LastError { get; private set; }
+        public bool IsStopped { get { return stopping; } }
+        public long RefreshVersion { get { return Interlocked.Read(ref refreshVersion); } }
+        public void SetError(string message) { LastError = message; }
+        public void SetEndpoints(BluetoothEndpoint[] value)
+        { lock (sync) endpoints = value; refresh.Set(); }
+        public string ResolveBluetoothAddress(string id, string name)
+        {
+            lock(sync)
+            {
+                var match = endpoints.FirstOrDefault(e => e.Connected && !String.IsNullOrEmpty(e.Address) &&
+                    (e.Id == id || (!String.IsNullOrEmpty(name) && !String.IsNullOrEmpty(e.Name) && e.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0)));
+                if(match != null) return match.Address;
+            }
+            return WindowsDeviceDiscovery.Scan(true).Where(d => !String.IsNullOrEmpty(d.BluetoothAddress) &&
+                !String.IsNullOrEmpty(name) && d.Name.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0).Select(d => d.BluetoothAddress).FirstOrDefault();
+        }
         public long Version { get { lock (sync) return version; } }
         public DiscoveredDevice[] Snapshot() { lock (sync) return devices.ToArray(); }
         public void Start()
@@ -59,7 +90,7 @@ namespace Aj139Battery
             if (worker != null) throw new InvalidOperationException("Already started");
             worker = Task.Run((Action)Run);
         }
-        public void Refresh() { refresh.Set(); }
+        public void Refresh() { Interlocked.Increment(ref refreshVersion); refresh.Set(); }
         private void Run()
         {
             while (!stopped.WaitOne(0))
@@ -69,19 +100,44 @@ namespace Aj139Battery
                     var found = WindowsDeviceDiscovery.Scan();
                     lock (sync)
                     {
+                        found = MergeEndpoints(found, endpoints);
                         string oldKey = Fingerprint(devices), newKey = Fingerprint(found);
                         devices = found;
                         if (oldKey != newKey) version++;
                     }
                 }
-                catch (System.ComponentModel.Win32Exception) { }
-                if (WaitHandle.WaitAny(new WaitHandle[] { stopped, refresh }, 15000) == 0) break;
+                catch (Exception error) { LastError = error.Message; }
+                if (WaitHandle.WaitAny(new WaitHandle[] { stopped, refresh }, 3000) == 0) break;
             }
+        }
+        public static DiscoveredDevice[] MergeEndpoints(DiscoveredDevice[] native, BluetoothEndpoint[] endpoints)
+        {
+            var result = native.ToDictionary(d => d.Id, StringComparer.OrdinalIgnoreCase);
+            foreach (var group in endpoints.GroupBy(e => e.Id, StringComparer.OrdinalIgnoreCase))
+            {
+                var active = group.Where(e => e.Connected).ToArray();
+                var endpoint = active.FirstOrDefault(e => e.Percent.HasValue) ?? active.FirstOrDefault() ?? group.First();
+                DiscoveredDevice device;
+                if (!result.TryGetValue(group.Key, out device))
+                {
+                    if (String.IsNullOrWhiteSpace(endpoint.Name) || WindowsBatteryProtocol.IsSpecialized("", endpoint.Name)) continue;
+                    device = new DiscoveredDevice { Id = group.Key, Name = endpoint.Name, Transport = "Bluetooth", CheckedUtc = DateTime.UtcNow };
+                    result[group.Key] = device;
+                }
+                device.Connected = active.Length > 0;
+                device.BluetoothAddress = endpoint.Address;
+                if (!String.IsNullOrWhiteSpace(endpoint.Name)) device.Name = endpoint.Name;
+                if (device.Connected == false) { device.Percent = null; device.Status = "Disconnected"; }
+                else if (endpoint.Percent.HasValue)
+                { device.Percent = endpoint.Percent; device.CheckedUtc = endpoint.UpdatedUtc; device.Status = "Live Bluetooth battery report"; }
+                else device.Status = device.Percent.HasValue ? "Windows battery data" : "Connected; battery unavailable";
+            }
+            return result.Values.OrderBy(d => d.Name).ToArray();
         }
         private static string Fingerprint(DiscoveredDevice[] entries)
         { return String.Join("\n", entries.Select(d => d.Id + "|" + d.Name + "|" + d.Transport + "|" + d.Percent + "|" + d.Connected + "|" + d.Status)); }
         public void Dispose()
-        { stopped.Set(); if (worker != null) worker.GetAwaiter().GetResult(); refresh.Dispose(); stopped.Dispose(); }
+        { stopping = true; stopped.Set(); if (worker != null) worker.GetAwaiter().GetResult(); refresh.Dispose(); stopped.Dispose(); }
     }
 
     public static class WindowsDeviceDiscovery
@@ -127,7 +183,8 @@ namespace Aj139Battery
             return null;
         }
 
-        public static DiscoveredDevice[] Scan()
+        public static DiscoveredDevice[] Scan() { return Scan(false); }
+        public static DiscoveredDevice[] Scan(bool includeSpecialized)
         {
             var groups = new Dictionary<string, DiscoveredDevice>(StringComparer.OrdinalIgnoreCase);
             var set = SetupDiGetClassDevs(IntPtr.Zero, null, IntPtr.Zero, 6);
@@ -173,6 +230,11 @@ namespace Aj139Battery
                         }
                     }
                     device.Eligible |= btRoot || percent.HasValue || (usb && input);
+                    if(btRoot)
+                    {
+                        var address = Regex.Match(id, @"DEV_([0-9A-F]{12})", RegexOptions.IgnoreCase);
+                        if(address.Success) device.BluetoothAddress = address.Groups[1].Value;
+                    }
                 }
             }
             finally { SetupDiDestroyDeviceInfoList(set); }
@@ -182,7 +244,7 @@ namespace Aj139Battery
                 else if (item.Percent.HasValue) item.Status = item.Connected == true ? "Windows battery data" : "Cached battery; connection unconfirmed";
                 else item.Status = item.Connected == true ? "Battery unavailable; device provider needed" : "Detected; battery unavailable";
             }
-            return groups.Values.Where(d => d.Eligible && !d.Specialized).OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Id).ToArray();
+            return groups.Values.Where(d => d.Eligible && (includeSpecialized || !d.Specialized)).OrderBy(d => d.Name, StringComparer.OrdinalIgnoreCase).ThenBy(d => d.Id).ToArray();
         }
     }
 }

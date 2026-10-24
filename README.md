@@ -1,6 +1,6 @@
 # Peripheral Battery Monitor
 
-A lightweight Windows app for wireless-device battery status. One tray icon, a device dashboard, local settings, and updates from GitHub Releases. No vendor application or third-party device driver is required.
+A lightweight Windows app for wireless-device battery status. A compact device dashboard, combined or separate tray icons, local settings, and releases from GitHub. No vendor application or third-party device driver is required.
 
 ## Install
 
@@ -12,32 +12,34 @@ Requires Windows 10/11 x64 with Windows PowerShell 5.1 and the built-in .NET Fra
 
 ## Supported devices
 
-- **AJAZZ AJ139 V2 MC**, over its 2.4 GHz receiver (`A8A5:2255`). Green status ring.
-- **Apple Magic Keyboard with Touch ID and Numeric Keypad**, over Bluetooth (`004C:029F`). Blue status ring.
+- **AJAZZ AJ139 V2 MC**, over its 2.4 GHz receiver (`A8A5:2255`). Green battery icon.
+- **Apple Magic Keyboard with Touch ID and Numeric Keypad**, over Bluetooth (`004C:029F`). Blue battery icon.
 
 Other Bluetooth and USB/HID devices are discovered automatically. Their percentages appear when Windows exposes usable battery data; proprietary protocols still require a device provider. The app cannot infer a receiver's radio frequency from a generic USB interface. AJ139 Bluetooth battery reading remains unsupported; the Apple keyboard's Bluetooth implementation is separate.
 
 ## Automatic device discovery
 
-The **Other devices** list groups Windows device nodes by their physical container ID, avoids duplicates of the two specialized providers, and reads Windows battery properties without sending vendor commands to unknown hardware. It refreshes the **local Windows cache** every 15 seconds and on manual Refresh. This is separate from the passive AJ139/Apple listeners: it does not poll those devices over the radio.
+All connected devices use the same compact cards, with device-type icons and Bluetooth/receiver/USB connection symbols. Cards appear and disappear automatically. The window fits the current number of cards; additional pages replace scrolling when the display is full.
 
-Battery data unavailable from Windows is not guessed. Enable **Show detected devices without battery data** in Settings to see unsupported devices as well. A confirmed disconnected device has no current percentage. If Windows cannot confirm a device's connection, an existing value is explicitly labeled **cached** and is excluded from low-battery alerts and the tray's lowest-percentage calculation. Device presence in the PnP tree is not treated as proof of an active Bluetooth link.
+Windows device nodes and Classic/BLE association endpoints are grouped by their physical container ID. A device is connected when any of its Bluetooth endpoints is active, so an inactive Classic endpoint cannot hide an active BLE connection. Connection information is checked every three seconds. Disconnected or unconfirmed devices are excluded from the dashboard, tray minimum and alerts.
 
-The implementation uses System.Devices.BatteryLife plus the Windows Bluetooth battery-cache property. It does not yet implement direct generic BLE GATT/Battery Service subscriptions. When Windows does not publish battery data, a standard GATT or vendor-specific provider can be added later. Bluetooth version numbers and radio bands alone do not determine battery support; receiver firmware and exposed Windows interfaces do.
+Generic BLE devices exposing the standard Battery Service (180F) and Battery Level characteristic (2A19) are read at connection and manual Refresh. The app subscribes to battery notifications when supported; it does not periodically query the battery. Devices without notifications retain their last report until Refresh/reconnection. Other devices use available Windows battery properties. Proprietary receiver protocols still need dedicated providers.
 
-Live enumeration found an Xbox Wireless Controller with a cached 100% value and an unconfirmed connection, plus a disconnected Xbox Wireless Headset. This validates discovery/cache handling, not universal compatibility with every device.
+Live validation confirmed an Xbox Wireless Headset over BLE, including a successful battery read and notification registration. An inactive paired Xbox controller is correctly excluded. This does not imply universal compatibility with every device.
 
 ## Use
 
-Double-click the tray icon to open the dashboard. Hover over it for both percentages. The dashboard shows device cards, connection status and the last battery-report time. Closing the dashboard keeps monitoring active; choose **Exit** in the tray menu to stop the app.
+Double-click the tray icon to open the dashboard. The combined icon shows up to four devices; its tooltip lists their battery levels and connection types. Separate mode gives every connected device its own icon. The dashboard shows device cards, connection status and the last battery-report time. **About** includes the app version, developer, contact email, LinkedIn and repository links. Closing the dashboard keeps monitoring active; choose **Exit** in the tray menu to stop the app.
 
-**Settings** lets you change the tray display (battery rings or lowest percentage), low-battery notifications and threshold, startup at Windows sign-in, and release checking. Startup is disabled by default. Settings are kept in your local Windows profile, independently of application versions.
+**Settings** groups language (Ukrainian/English), combined/separate tray mode, battery symbols or lowest percentage, notifications, Windows startup and release checking. The window uses a standard Windows toolbar. Startup is disabled by default. Settings are kept in your local Windows profile, independently of application versions.
+
+A Bluetooth card has a disconnect icon that requests Windows to disconnect that remote address while keeping its pairing. A driver may reject the request or reconnect automatically; the app offers Windows Bluetooth settings on failure. It does not disable the Bluetooth adapter or forget devices. USB/receiver cards disable this action.
 
 The app queries each device at startup/reconnect or manual **Refresh batteries**, then listens for battery-change reports. It does not poll battery percentages every five minutes. Firmware controls notification timing; if a change is not reported, use Refresh. Zero percent is a valid value; missing data is displayed as unavailable rather than zero.
 
 ## Updates
 
-By default, the app checks the latest stable GitHub release at startup, at most once per day, and notifies you when a newer version exists. **Check for updates** in the window or tray menu downloads and installs it after you choose to proceed. This restart preserves settings.
+By default, the app checks the latest stable GitHub release at startup, at most once per day, and notifies you when a newer version exists. **Updates** opens a release picker. Select a newer version, reinstall the current one or roll back to an older compatible release. Downloads are verified before installation and the app restarts with settings retained. Older versions may not support newer settings or features.
 
 The updater validates the release's SHA-256 checksum, expected repository/download paths, package version, archive paths and size. New version files are staged before the active-version pointer changes. Previous version directories are retained. Checksums are integrity checks, not a code-signing certificate. Portable copies are installed into the normal per-user location when you accept an update.
 
@@ -47,7 +49,8 @@ The updater validates the release's SHA-256 checksum, expected repository/downlo
 src/
   App/         Dashboard, tray, settings and release updater
   Core/        Shared state and Windows HID discovery
-  Devices/     AJ139 and Magic Keyboard providers and parsers
+  Devices/     Dedicated HID providers, Windows discovery and BLE worker
+  UI/          Drawn device cards and connection/device icons
   Launcher/    Native Windows entry point
 installer/     Self-contained setup and install/uninstall scripts
 scripts/       Build and validation commands
@@ -71,10 +74,14 @@ Build output goes into `dist/`: portable ZIP, setup EXE and SHA256SUMS.txt. A ma
 
 Both specialized devices returned **100%** in live initial/manual queries. Parser tests cover unsolicited battery packets, zero/invalid percentages, truncated reports and unrelated messages. Installation tests cover a clean install, version upgrade, retention of the previous version and rejection of an incomplete package. Update tests cover version comparison, checksum mismatch and archive traversal.
 
-A physical percentage drop has not yet been observed during validation, so unsolicited notification timing is not confirmed. A missing disconnect notification may leave the last reported value until Refresh/reconnection. Charging flags are not interpreted as charging-state UI. Bluetooth sleep behavior may vary by firmware. Automatic post-launch health-check rollback is not implemented.
+Device firmware controls notification timing. The AJ139 listener has received unsolicited battery reports in live validation. Transient upward battery estimates while discharging are filtered: an increase must persist for at least three reports over 20 seconds, while decreases and explicitly flagged charging reports apply immediately. A missing disconnect notification may leave the last reported value until Refresh/reconnection. Charging flags are not interpreted as charging-state UI. Bluetooth sleep behavior may vary by firmware. Automatic post-launch health-check rollback is not implemented.
 
 The keyboard provider opens only its battery vendor collection, not the keystroke collection. No typed keys, telemetry or cloud account are collected. Network access is used only for GitHub release checks/downloads; automatic checks can be disabled.
 
 ## Protocol references
 
 AJ139 packet layouts were identified from the JavaScript served by its [official web panel](https://139v2mc.yjx2012.com/), linked in the [model manual](https://ae01.alicdn.com/kf/S2bc3c9a125f44cde8b8ef113942b4b16T.pdf), and checked against the receiver. The Apple report format was cross-checked against [MagicKeyBattery](https://github.com/fixtan/MagicKeyBattery) and verified against the connected keyboard. The implementations here were written independently. This project is not affiliated with AJAZZ or Apple.
+
+## Developer
+
+Developed by **Vladyslav Hnatovskyi** ([GitHub](https://github.com/vhnatovskyi), [LinkedIn](https://www.linkedin.com/in/vladyslav-hnatovskyi/)). Contact: [vhnatovskyi@hotmail.com](mailto:vhnatovskyi@hotmail.com).

@@ -60,6 +60,7 @@ namespace Aj139Battery
         private string status = "Waiting for receiver";
         private long version;
         private DateTime updatedUtc;
+        private readonly BatteryReportFilter batteryFilter = new BatteryReportFilter();
 
         public BatteryState Snapshot()
         {
@@ -81,6 +82,7 @@ namespace Aj139Battery
             {
                 if (percent.HasValue || online || status != message) version++;
                 percent = null; online = false; status = message;
+                batteryFilter.Reset();
             }
         }
 
@@ -109,6 +111,7 @@ namespace Aj139Battery
                 // A query reply can contain a cached value while the mouse is in BT mode.
                 // An unsolicited battery notification itself proves a live mouse.
                 if (!online && report[2] != 0xFA) return;
+                if (!batteryFilter.Accept(value, flag, DateTime.UtcNow)) return;
                 if (percent != value || chargeFlag != flag || !online) version++;
                 percent = value; chargeFlag = flag; online = true;
                 status = "Connected"; updatedUtc = DateTime.UtcNow;
@@ -197,6 +200,25 @@ namespace Aj139Battery
             stop.Cancel();
             if (worker != null) worker.GetAwaiter().GetResult();
             // Refresh requests may still be completing; do not dispose their shared gate.
+        }
+    }
+
+    // Battery voltage estimates can briefly rise while discharging. Require a
+    // sustained rise, but never delay discharge reports or an explicit charge.
+    public sealed class BatteryReportFilter
+    {
+        private int? accepted, candidate;
+        private int count;
+        private DateTime since;
+        public void Reset() { accepted = candidate = null; count = 0; }
+        public bool Accept(int value, int charging, DateTime now)
+        {
+            if (!accepted.HasValue || value <= accepted.Value || charging != 0)
+            { accepted = value; candidate = null; count = 0; return true; }
+            if (candidate != value) { candidate = value; since = now; count = 1; return false; }
+            count++;
+            if (count < 3 || (now - since).TotalSeconds < 20) return false;
+            accepted = value; candidate = null; count = 0; return true;
         }
     }
 
