@@ -1,130 +1,153 @@
+using System.ComponentModel;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.UI.Windowing;
 using PeripheralBatteryMonitor.Desktop.Services;
-using Native = Microsoft.UI.Xaml;
-using Controls = Microsoft.UI.Xaml.Controls;
-using Media = Microsoft.UI.Xaml.Media;
-using Point = Windows.Graphics.PointInt32;
-using Rect = Windows.Graphics.RectInt32;
+using Color=System.Drawing.Color;
+using Font=System.Drawing.Font;
+using Point=System.Drawing.Point;
 
 namespace PeripheralBatteryMonitor.Desktop.Platforms.Windows;
 
-// Interaction is explicitly armed from Settings. Switching to ANY other app
-// disarms it, including windowed games that fullscreen heuristics cannot detect.
+// Per-pixel alpha avoids WinUI's opaque window backing surface. Text and bars
+// stay opaque; a dedicated borderless popup has no system frame to turn white.
 internal sealed class BatteryWidget : IDisposable
 {
-    internal Native.Window Window { get; } = new();
-    internal bool IsMoving { get; private set; }
-    internal int DeviceCount { get; private set; }
-    internal bool ClickThrough => (GetWindowLong(handle,-20)&0x20)!=0;
-    internal byte NativeOpacity { get { GetLayeredWindowAttributes(handle,out _,out byte alpha,out _);return alpha; } }
-    internal byte BackgroundOpacity => ((Media.SolidColorBrush)frame.Background).Color.A;
-    internal bool HasTransparentBackdrop => Window.SystemBackdrop is TransparentWidgetBackdrop backdrop && backdrop.IsConnected;
-    private readonly IntPtr handle,owner;
+    private readonly IntPtr handle,owner,module;
+    private readonly WindowProc procedure;
+    private readonly string className="PbmBatteryWidget"+Guid.NewGuid().ToString("N");
     private readonly bool persist;
-    private readonly Native.DispatcherTimer guard=new() { Interval=TimeSpan.FromMilliseconds(100) };
+    private readonly Microsoft.UI.Xaml.DispatcherTimer guard=new() { Interval=TimeSpan.FromMilliseconds(100) };
+    private IReadOnlyList<DeviceReading> readings=[];
+    private Bitmap? surface;
     private string fingerprint="";
     private bool disposed,positionDirty;
     private DateTime moved;
     private uint dpi;
-    private IReadOnlyList<DeviceReading> readings=[];
-    private readonly Controls.StackPanel rows=new() { Spacing=8 };
-    private readonly Native.Controls.Border frame;
+    internal bool IsMoving { get; private set; }
+    internal int DeviceCount { get; private set; }
+    internal bool ClickThrough=>(GetWindowLong(handle,-20)&0x20)!=0;
+    internal bool IsAlwaysOnTop=>(GetWindowLong(handle,-20)&8)!=0;
+    internal bool HasBorder=>(GetWindowLong(handle,-16)&0x00C40000)!=0;
+    internal byte BackgroundOpacity=>(byte)Math.Round(Math.Clamp(AppRuntime.Current.Settings.Value.WidgetOpacity,20,100)*2.55);
+    internal Rectangle Bounds { get { GetWindowRect(handle,out var r);return new(r.Left,r.Top,r.Right-r.Left,r.Bottom-r.Top); } }
 
-    public BatteryWidget(Native.Window main,bool persistPosition=true)
+    public BatteryWidget(Microsoft.UI.Xaml.Window main,bool persistPosition=true)
     {
         persist=persistPosition;owner=WinRT.Interop.WindowNative.GetWindowHandle(main);
-        handle=WinRT.Interop.WindowNative.GetWindowHandle(Window);
-        Window.Title="Peripheral Battery Monitor — Widget";
-        var presenter=OverlappedPresenter.Create();
-        presenter.SetBorderAndTitleBar(false,false);
-        presenter.IsResizable=false;presenter.IsMaximizable=false;presenter.IsMinimizable=false;presenter.IsAlwaysOnTop=true;
-        Window.AppWindow.SetPresenter(presenter);Window.AppWindow.IsShownInSwitchers=false;
-        frame=new Native.Controls.Border { Padding=new Native.Thickness(10),BorderThickness=new Native.Thickness(1),CornerRadius=new Native.CornerRadius(10),Child=rows };
-        frame.PointerPressed+=(_,e)=>
-        {
-            if(!CanMove(GetForegroundWindow()==owner || GetForegroundWindow()==handle,IsMoving)) { SetMoving(false);return; }
-            if(!e.GetCurrentPoint(frame).Properties.IsLeftButtonPressed)return;
-            ReleaseCapture();SendMessage(handle,0xA1,new IntPtr(2),IntPtr.Zero); // Native caption drag, supports multiple displays.
-            e.Handled=true;
-        };
-        Window.Content=new Controls.ScrollViewer { Content=frame,VerticalScrollBarVisibility=Controls.ScrollBarVisibility.Auto,HorizontalScrollBarVisibility=Controls.ScrollBarVisibility.Disabled };
-        Window.SystemBackdrop=new TransparentWidgetBackdrop();
-        int style=GetWindowLong(handle,-20);
-        SetWindowLong(handle,-20,(style|0x80000|0x80|0x08000000)&~0x40000); // Layered, tool window, no activation or taskbar button.
-        SetLayeredWindowAttributes(handle,0,255,2);
-        SetMoving(false);RestorePosition(main);Update([]);
-        Window.AppWindow.Changed+=(_,e)=>{if(e.DidPositionChange){positionDirty=true;moved=DateTime.UtcNow;}};
-        Window.AppWindow.Closing+=(_,e)=>{if(!disposed)e.Cancel=true;};
+        module=GetModuleHandle(null);procedure=WindowMessage;
+        var wc=new WindowClass { Size=(uint)Marshal.SizeOf<WindowClass>(),Instance=module,Procedure=Marshal.GetFunctionPointerForDelegate(procedure),Name=className,Cursor=LoadCursor(IntPtr.Zero,new IntPtr(32512)) };
+        if(RegisterClassEx(ref wc)==0)throw new Win32Exception(Marshal.GetLastWin32Error());
+        handle=CreateWindowEx(0x080800A8,className,"Peripheral Battery Monitor — Widget",0x80000000,0,0,280,124,IntPtr.Zero,IntPtr.Zero,module,IntPtr.Zero);
+        if(handle==IntPtr.Zero){UnregisterClass(className,module);throw new Win32Exception(Marshal.GetLastWin32Error());}
+        uint noBorder=0xFFFFFFFE;DwmSetWindowAttribute(handle,34,ref noBorder,4);
+        RestorePosition(main);Update([]);
         guard.Tick+=(_,_)=>
         {
             CheckInteractionFocus(GetForegroundWindow()==owner || GetForegroundWindow()==handle);
             if(positionDirty && DateTime.UtcNow-moved>TimeSpan.FromMilliseconds(600))SavePosition();
             if(dpi!=GetDpiForWindow(handle)){fingerprint="";Update(readings);}
         };
-        guard.Start();Window.AppWindow.Show(false);
+        guard.Start();ShowWindow(handle,4);
     }
-
     internal static bool CanMove(bool monitorHasFocus,bool armed)=>monitorHasFocus && armed;
-    internal void CheckInteractionFocus(bool monitorHasFocus){if(IsMoving && !CanMove(monitorHasFocus,true))SetMoving(false);}
+    internal void CheckInteractionFocus(bool monitorHasFocus){if(IsMoving && !monitorHasFocus)SetMoving(false);}
     public void BeginMove(){if(GetForegroundWindow()==owner)SetMoving(true);}
     internal void SetMoving(bool value)
     {
-        IsMoving=value;
-        int style=GetWindowLong(handle,-20);
+        IsMoving=value;int style=GetWindowLong(handle,-20);
         SetWindowLong(handle,-20,value?style&~0x20:style|0x20);
-        // Flush cached extended styles without activating the overlay.
         SetWindowPos(handle,IntPtr.Zero,0,0,0,0,0x37);
-        fingerprint="";Update(readings);
+    }
+    private IntPtr WindowMessage(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam)
+    {
+        if(message==0x21)return new IntPtr(3); // MA_NOACTIVATE.
+        if(message==0x10)return IntPtr.Zero;
+        if(message==0x20 && IsMoving){SetCursor(LoadCursor(IntPtr.Zero,new IntPtr(32646)));return new IntPtr(1);}
+        if(message==0x47 && handle!=IntPtr.Zero){positionDirty=true;moved=DateTime.UtcNow;}
+        if(message==0x201)
+        {
+            if(!CanMove(GetForegroundWindow()==owner || GetForegroundWindow()==handle,IsMoving)){SetMoving(false);return IntPtr.Zero;}
+            ReleaseCapture();SendMessage(hwnd,0xA1,new IntPtr(2),IntPtr.Zero);return IntPtr.Zero;
+        }
+        return DefWindowProc(hwnd,message,wParam,lParam);
     }
     public void Update(IReadOnlyList<DeviceReading> value)
     {
-        if(disposed)return;
-        readings=value;
+        if(disposed)return;readings=value;
         bool dark=Views.Design.IsDark;
-        int opacity=Math.Clamp(AppRuntime.Current.Settings.Value.WidgetOpacity,20,100);
-        string next=$"{dark}|{IsMoving}|{opacity}|{AppRuntime.Current.Settings.Value.Language}|"+string.Join('|',value.Select(d=>$"{d.Id}:{d.Name}:{d.Transport}:{d.Percent}:{d.Accent}"));
-        if(fingerprint==next)return;fingerprint=next;DeviceCount=value.Count;
-        var foreground=Brush(dark?"#F3F6FA":"#182435");
-        var secondary=Brush(dark?"#A5B4C8":"#52647A");
-        frame.Background=Brush(dark?"#172232":"#F5F8FC",alpha:(byte)Math.Round(opacity*2.55));
-        frame.BorderBrush=Brush(IsMoving?"#399BDE":dark?"#34465D":"#CBD8E8",alpha:IsMoving?(byte)255:(byte)Math.Round(opacity*2.55));
-        Controls.ToolTipService.SetToolTip(frame,IsMoving?AppRuntime.Current.Text("Перетягніть віджет","Drag to move widget"):null);
-        rows.Children.Clear();
-        foreach(var device in value)
-        {
-            var grid=new Controls.Grid { ColumnSpacing=8 };
-            grid.ColumnDefinitions.Add(new() { Width=new Native.GridLength(1,Native.GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new() { Width=Native.GridLength.Auto });
-            var name=new Controls.TextBlock { Text=device.Name,FontSize=12,Foreground=foreground,TextTrimming=Native.TextTrimming.CharacterEllipsis,VerticalAlignment=Native.VerticalAlignment.Center };
-            var percent=new Controls.TextBlock { Text=device.Percent is int p?$"{p}%":"—",FontSize=18,FontWeight=Microsoft.UI.Text.FontWeights.SemiBold,Foreground=Brush(device.Accent,dark?1:0.55) };
-            Controls.Grid.SetColumn(percent,1);grid.Children.Add(name);grid.Children.Add(percent);
-            var bar=new Controls.ProgressBar { Minimum=0,Maximum=100,Value=device.Percent??0,Height=3,Foreground=Brush(device.Accent),Background=Brush(dark?"#34465D":"#DCE5F0"),Margin=new Native.Thickness(0,3,0,0) };
-            var row=new Controls.StackPanel();row.Children.Add(grid);row.Children.Add(bar);rows.Children.Add(row);
-        }
-        if(value.Count==0)rows.Children.Add(new Controls.TextBlock { Text=AppRuntime.Current.Text("Немає підключених пристроїв","No connected devices"),FontSize=12,Foreground=secondary });
+        string next=$"{dark}|{BackgroundOpacity}|{AppRuntime.Current.Settings.Value.Language}|"+string.Join('|',value.Select(d=>$"{d.Id}:{d.Name}:{d.Percent}:{d.Accent}"));
+        if(fingerprint==next)return;
         dpi=GetDpiForWindow(handle);double scale=dpi/96d;
-        var area=DisplayArea.GetFromWindowId(Window.AppWindow.Id,DisplayAreaFallback.Nearest).WorkArea;
-        int height=Math.Min(area.Height-16,(int)Math.Ceiling((22+Math.Max(1,value.Count)*40)*scale));
-        // A scroll container keeps large device collections reachable within the display.
-        Window.AppWindow.Resize(new((int)Math.Ceiling(280*scale),Math.Max(55,height)));
-        KeepOnDisplay(area);
+        var old=Bounds;
+        var area=DisplayArea.GetFromRect(new(old.X,old.Y,old.Width,old.Height),DisplayAreaFallback.Nearest).WorkArea;
+        int width=(int)Math.Ceiling(280*scale),height=Math.Min(area.Height-16,(int)Math.Ceiling((10+Math.Max(1,value.Count)*38)*scale));
+        var bitmap=new Bitmap(width,Math.Max(40,height),PixelFormat.Format32bppPArgb);
+        using(var g=Graphics.FromImage(bitmap))
+        {
+            g.Clear(Color.Transparent);g.SmoothingMode=SmoothingMode.AntiAlias;g.CompositingMode=CompositingMode.SourceCopy;
+            using var panel=Rounded(width-1,bitmap.Height-1,(float)(10*scale));
+            using var fill=new SolidBrush(Color.FromArgb(BackgroundOpacity,ColorTranslator.FromHtml(dark?"#172232":"#F5F8FC")));
+            g.FillPath(fill,panel);g.CompositingMode=CompositingMode.SourceOver;g.TextRenderingHint=TextRenderingHint.AntiAliasGridFit;
+            using var nameFont=new Font("Segoe UI",(float)(12*scale),FontStyle.Regular,GraphicsUnit.Pixel);
+            using var chargeFont=new Font("Segoe UI",(float)(18*scale),FontStyle.Bold,GraphicsUnit.Pixel);
+            using var text=new SolidBrush(ColorTranslator.FromHtml(dark?"#F3F6FA":"#182435"));
+            using var track=new SolidBrush(ColorTranslator.FromHtml(dark?"#34465D":"#DCE5F0"));
+            using var names=new StringFormat { Trimming=StringTrimming.EllipsisCharacter,FormatFlags=StringFormatFlags.NoWrap,LineAlignment=StringAlignment.Center };
+            using var charges=new StringFormat { Alignment=StringAlignment.Far,LineAlignment=StringAlignment.Center,FormatFlags=StringFormatFlags.NoWrap };
+            if(value.Count==0)g.DrawString(AppRuntime.Current.Text("Немає підключених пристроїв","No connected devices"),nameFont,text,new RectangleF((float)(10*scale),0,width-(float)(20*scale),bitmap.Height),names);
+            for(int i=0;i<value.Count;i++)
+            {
+                float top=(float)((5+i*38)*scale);if(top+29*scale>bitmap.Height)break;
+                var device=value[i];var accent=ColorTranslator.FromHtml(device.Accent);
+                using var color=new SolidBrush(accent);
+                using var charge=new SolidBrush(dark?accent:Color.FromArgb((int)(accent.R*0.55),(int)(accent.G*0.55),(int)(accent.B*0.55)));
+                g.DrawString(device.Name,nameFont,text,new RectangleF((float)(10*scale),top,width-(float)(82*scale),(float)(25*scale)),names);
+                g.DrawString(device.Percent is int p?$"{p}%":"—",chargeFont,charge,new RectangleF(width-(float)(74*scale),top,(float)(64*scale),(float)(25*scale)),charges);
+                var bar=new RectangleF((float)(10*scale),top+(float)(28*scale),width-(float)(20*scale),(float)(2.5*scale));
+                g.FillRectangle(track,bar);bar.Width*=Math.Clamp(device.Percent??0,0,100)/100f;g.FillRectangle(color,bar);
+            }
+        }
+        try { Present(bitmap); } catch { bitmap.Dispose();throw; }
+        surface?.Dispose();surface=bitmap;DeviceCount=value.Count;fingerprint=next;KeepOnDisplay(area);
     }
-    private void RestorePosition(Native.Window main)
+    private void Present(Bitmap bitmap)
+    {
+        IntPtr screen=GetDC(IntPtr.Zero),dc=IntPtr.Zero,image=IntPtr.Zero,previous=IntPtr.Zero;
+        try
+        {
+            dc=CreateCompatibleDC(screen);image=bitmap.GetHbitmap(Color.FromArgb(0));previous=SelectObject(dc,image);
+            var p=Bounds.Location;var destination=new NativePoint(p.X,p.Y);var source=new NativePoint(0,0);var size=new NativeSize(bitmap.Width,bitmap.Height);
+            var blend=new Blend { ConstantAlpha=255,AlphaFormat=1 };
+            if(!UpdateLayeredWindow(handle,screen,ref destination,ref size,dc,ref source,0,ref blend,2))throw new Win32Exception(Marshal.GetLastWin32Error());
+        }
+        finally { if(previous!=IntPtr.Zero)SelectObject(dc,previous);if(image!=IntPtr.Zero)DeleteObject(image);if(dc!=IntPtr.Zero)DeleteDC(dc);if(screen!=IntPtr.Zero)ReleaseDC(IntPtr.Zero,screen); }
+    }
+    internal Bitmap RenderPreview()=>(Bitmap)surface!.Clone();
+    internal void MoveTo(int x,int y)=>SetWindowPos(handle,IntPtr.Zero,x,y,0,0,0x15);
+    internal void Raise()=>SetWindowPos(handle,new IntPtr(-1),0,0,0,0,0x13);
+    private static GraphicsPath Rounded(float width,float height,float radius)
+    {
+        var path=new GraphicsPath();float d=radius*2;
+        path.AddArc(0,0,d,d,180,90);path.AddArc(width-d,0,d,d,270,90);path.AddArc(width-d,height-d,d,d,0,90);path.AddArc(0,height-d,d,d,90,90);path.CloseFigure();return path;
+    }
+    private void RestorePosition(Microsoft.UI.Xaml.Window main)
     {
         var area=DisplayArea.GetFromWindowId(main.AppWindow.Id,DisplayAreaFallback.Nearest).WorkArea;
         var position=new WidgetPosition { X=area.X+area.Width-300,Y=area.Y+24 };
         if(persist)try { position=JsonSerializer.Deserialize(File.ReadAllText(PositionPath),AppJsonContext.Default.WidgetPosition)??position; }
         catch(Exception error) when(error is IOException or JsonException or UnauthorizedAccessException) { }
-        area=DisplayArea.GetFromRect(new Rect(position.X,position.Y,280,120),DisplayAreaFallback.Nearest).WorkArea;
-        Window.AppWindow.Move(new Point(position.X,position.Y));KeepOnDisplay(area);
+        area=DisplayArea.GetFromRect(new(position.X,position.Y,280,124),DisplayAreaFallback.Nearest).WorkArea;
+        MoveTo(position.X,position.Y);KeepOnDisplay(area);
     }
-    private void KeepOnDisplay(Rect area)
+    private void KeepOnDisplay(global::Windows.Graphics.RectInt32 area)
     {
-        var p=Window.AppWindow.Position;var size=Window.AppWindow.Size;
-        var clamped=new Point(Math.Clamp(p.X,area.X,Math.Max(area.X,area.X+area.Width-size.Width)),Math.Clamp(p.Y,area.Y,Math.Max(area.Y,area.Y+area.Height-size.Height)));
-        if(p.X!=clamped.X || p.Y!=clamped.Y)Window.AppWindow.Move(clamped);
+        var r=Bounds;int x=Math.Clamp(r.X,area.X,Math.Max(area.X,area.X+area.Width-r.Width)),y=Math.Clamp(r.Y,area.Y,Math.Max(area.Y,area.Y+area.Height-r.Height));
+        if(x!=r.X || y!=r.Y)MoveTo(x,y);
     }
     private static string PositionPath=>Path.Combine(SettingsStore.StateRoot,"widget-position.json");
     private void SavePosition()
@@ -132,44 +155,44 @@ internal sealed class BatteryWidget : IDisposable
         positionDirty=false;if(!persist)return;
         try
         {
-            var p=Window.AppWindow.Position;Directory.CreateDirectory(SettingsStore.StateRoot);
+            var p=Bounds.Location;Directory.CreateDirectory(SettingsStore.StateRoot);
             File.WriteAllText(PositionPath+".pending",JsonSerializer.Serialize(new WidgetPosition { X=p.X,Y=p.Y },AppJsonContext.Default.WidgetPosition));
             File.Move(PositionPath+".pending",PositionPath,true);
         }
         catch(Exception error) when(error is IOException or UnauthorizedAccessException) { }
     }
-    private static Media.SolidColorBrush Brush(string hex,double brightness=1,byte alpha=255)
-    {var c=Microsoft.Maui.Graphics.Color.FromArgb(hex);return new(global::Windows.UI.Color.FromArgb(alpha,(byte)(c.Red*255*brightness),(byte)(c.Green*255*brightness),(byte)(c.Blue*255*brightness)));}
-    public void Dispose(){if(disposed)return;SavePosition();disposed=true;guard.Stop();Window.Close();}
+    public void Dispose(){if(disposed)return;SavePosition();disposed=true;guard.Stop();DestroyWindow(handle);UnregisterClass(className,module);surface?.Dispose();}
+    private delegate IntPtr WindowProc(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam);
+    [StructLayout(LayoutKind.Sequential,CharSet=CharSet.Unicode)]private struct WindowClass { public uint Size,Style;public IntPtr Procedure;public int ClassExtra,WindowExtra;public IntPtr Instance,Icon,Cursor,Background;public string? Menu,Name;public IntPtr SmallIcon; }
+    [StructLayout(LayoutKind.Sequential)]private struct NativeRect { public int Left,Top,Right,Bottom; }
+    [StructLayout(LayoutKind.Sequential)]private struct NativePoint(int x,int y) { public int X=x,Y=y; }
+    [StructLayout(LayoutKind.Sequential)]private struct NativeSize(int width,int height) { public int Width=width,Height=height; }
+    [StructLayout(LayoutKind.Sequential,Pack=1)]private struct Blend { public byte Operation,Flags,ConstantAlpha,AlphaFormat; }
+    [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)]private static extern ushort RegisterClassEx(ref WindowClass wc);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern bool UnregisterClass(string name,IntPtr instance);
+    [DllImport("kernel32.dll",CharSet=CharSet.Unicode)]private static extern IntPtr GetModuleHandle(string? name);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)]private static extern IntPtr CreateWindowEx(uint extended,string name,string title,uint style,int x,int y,int width,int height,IntPtr parent,IntPtr menu,IntPtr instance,IntPtr param);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern IntPtr DefWindowProc(IntPtr hwnd,uint message,IntPtr wParam,IntPtr lParam);
+    [DllImport("user32.dll")]private static extern bool DestroyWindow(IntPtr hwnd);
+    [DllImport("user32.dll")]private static extern bool ShowWindow(IntPtr hwnd,int command);
+    [DllImport("user32.dll")]private static extern bool GetWindowRect(IntPtr hwnd,out NativeRect rect);
     [DllImport("user32.dll")]private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")]private static extern bool ReleaseCapture();
     [DllImport("user32.dll")]private static extern IntPtr SendMessage(IntPtr hwnd,uint msg,IntPtr wParam,IntPtr lParam);
     [DllImport("user32.dll",EntryPoint="GetWindowLongW")]private static extern int GetWindowLong(IntPtr hwnd,int index);
     [DllImport("user32.dll",EntryPoint="SetWindowLongW")]private static extern int SetWindowLong(IntPtr hwnd,int index,int value);
-    [DllImport("user32.dll")]private static extern bool SetLayeredWindowAttributes(IntPtr hwnd,uint key,byte alpha,uint flags);
-    [DllImport("user32.dll")]private static extern bool GetLayeredWindowAttributes(IntPtr hwnd,out uint key,out byte alpha,out uint flags);
     [DllImport("user32.dll")]private static extern bool SetWindowPos(IntPtr hwnd,IntPtr after,int x,int y,int cx,int cy,uint flags);
     [DllImport("user32.dll")]private static extern uint GetDpiForWindow(IntPtr hwnd);
-}
-
-// A transparent composition backdrop lets the panel use per-pixel alpha while
-// text and progress indicators retain full opacity. No global window fade.
-internal sealed class TransparentWidgetBackdrop : Media.SystemBackdrop
-{
-    private global::Windows.UI.Composition.Compositor? compositor;
-    private global::Windows.UI.Composition.CompositionColorBrush? brush;
-    internal bool IsConnected=>brush!=null;
-    protected override void OnTargetConnected(Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop target,Native.XamlRoot root)
-    {
-        base.OnTargetConnected(target,root);
-        compositor=new global::Windows.UI.Composition.Compositor();
-        brush=compositor.CreateColorBrush(global::Windows.UI.Color.FromArgb(0,0,0,0));
-        target.SystemBackdrop=brush;
-    }
-    protected override void OnTargetDisconnected(Microsoft.UI.Composition.ICompositionSupportsSystemBackdrop target)
-    {
-        target.SystemBackdrop=null;brush?.Dispose();brush=null;compositor?.Dispose();compositor=null;base.OnTargetDisconnected(target);
-    }
+    [DllImport("user32.dll")]private static extern IntPtr LoadCursor(IntPtr instance,IntPtr name);
+    [DllImport("user32.dll")]private static extern IntPtr SetCursor(IntPtr cursor);
+    [DllImport("dwmapi.dll")]private static extern int DwmSetWindowAttribute(IntPtr hwnd,int attribute,ref uint value,int size);
+    [DllImport("user32.dll")]private static extern IntPtr GetDC(IntPtr hwnd);
+    [DllImport("user32.dll")]private static extern int ReleaseDC(IntPtr hwnd,IntPtr dc);
+    [DllImport("gdi32.dll")]private static extern IntPtr CreateCompatibleDC(IntPtr dc);
+    [DllImport("gdi32.dll")]private static extern IntPtr SelectObject(IntPtr dc,IntPtr obj);
+    [DllImport("gdi32.dll")]private static extern bool DeleteObject(IntPtr obj);
+    [DllImport("gdi32.dll")]private static extern bool DeleteDC(IntPtr dc);
+    [DllImport("user32.dll",SetLastError=true)]private static extern bool UpdateLayeredWindow(IntPtr hwnd,IntPtr screen,ref NativePoint destination,ref NativeSize size,IntPtr source,ref NativePoint sourcePoint,uint key,ref Blend blend,uint flags);
 }
 
 internal sealed class WidgetPosition

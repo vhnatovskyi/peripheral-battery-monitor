@@ -1,0 +1,78 @@
+using System.Drawing;
+using System.Drawing.Imaging;
+using Microsoft.UI.Windowing;
+using PeripheralBatteryMonitor.Desktop.Services;
+using Color=System.Drawing.Color;
+using ImageFormat=System.Drawing.Imaging.ImageFormat;
+
+namespace PeripheralBatteryMonitor.Desktop.Platforms.Windows;
+
+// Inspect actual desktop composition over an app-owned two-color test window.
+// RenderTargetBitmap alone cannot catch an opaque HWND behind transparent XAML.
+internal static class WidgetSmoke
+{
+    internal static async Task RunAsync(Microsoft.UI.Xaml.Window main,string folder,IReadOnlyList<DeviceReading> readings)
+    {
+        int originalOpacity=AppRuntime.Current.Settings.Value.WidgetOpacity;
+        var background=new Microsoft.UI.Xaml.Window { Title="PBM widget transparency test" };
+        var grid=new Microsoft.UI.Xaml.Controls.Grid();
+        grid.ColumnDefinitions.Add(new());grid.ColumnDefinitions.Add(new());
+        var left=Color.FromArgb(200,216,232);var right=Color.FromArgb(230,178,196);
+        grid.Children.Add(new Microsoft.UI.Xaml.Controls.Border { Background=Brush(left) });
+        var rightPanel=new Microsoft.UI.Xaml.Controls.Border { Background=Brush(right) };
+        Microsoft.UI.Xaml.Controls.Grid.SetColumn(rightPanel,1);grid.Children.Add(rightPanel);background.Content=grid;
+        var presenter=OverlappedPresenter.Create();presenter.SetBorderAndTitleBar(false,false);presenter.IsAlwaysOnTop=true;background.AppWindow.SetPresenter(presenter);
+        try
+        {
+            using var widget=new BatteryWidget(main,false);widget.Update(readings);
+            if(!widget.IsAlwaysOnTop || widget.HasBorder || !widget.ClickThrough || widget.DeviceCount!=3)throw new InvalidOperationException("Widget must be borderless, passive and topmost");
+            widget.SetMoving(true);
+            if(widget.ClickThrough || !widget.IsMoving)throw new InvalidOperationException("Positioning must enable dragging");
+            widget.CheckInteractionFocus(false);
+            if(!widget.ClickThrough || widget.IsMoving)throw new InvalidOperationException("Switching away must restore click-through");
+            widget.CheckInteractionFocus(true);
+            if(!widget.ClickThrough)throw new InvalidOperationException("Returning must not silently unlock dragging");
+            widget.Update(readings.Take(1).ToArray());
+            if(widget.DeviceCount!=1)throw new InvalidOperationException("Disconnected devices remain in widget");
+            widget.Update(readings);
+            var area=DisplayArea.GetFromWindowId(main.AppWindow.Id,DisplayAreaFallback.Nearest).WorkArea;
+            var size=widget.Bounds.Size;
+            background.AppWindow.MoveAndResize(new(area.X+40,area.Y+40,size.Width+80,size.Height+80));
+            background.AppWindow.Show(false);await Task.Delay(500);
+            widget.MoveTo(area.X+80,area.Y+80);widget.Raise();
+            foreach(var theme in new[]{AppTheme.Light,AppTheme.Dark})
+            {
+                Application.Current!.UserAppTheme=theme;
+                foreach(int opacity in new[]{20,50,100})
+                {
+                    AppRuntime.Current.Settings.Value.WidgetOpacity=opacity;widget.Update(readings);widget.Raise();await Task.Delay(250);
+                    using var preview=widget.RenderPreview();
+                    if(preview.GetPixel(0,0).A!=0)throw new InvalidOperationException("Widget corners must be transparent without a frame");
+                    using var capture=new Bitmap(widget.Bounds.Width,widget.Bounds.Height,PixelFormat.Format32bppArgb);
+                    using(var graphics=Graphics.FromImage(capture))graphics.CopyFromScreen(widget.Bounds.Location,System.Drawing.Point.Empty,capture.Size);
+                    var tint=ColorTranslator.FromHtml(theme==AppTheme.Dark?"#172232":"#F5F8FC");
+                    AssertBlend(capture.GetPixel(5,capture.Height/2),left,tint,opacity);
+                    AssertBlend(capture.GetPixel(capture.Width-6,capture.Height/2),right,tint,opacity);
+                    if(opacity==50)
+                    {
+                        preview.Save(Path.Combine(folder,theme.ToString().ToLowerInvariant()+"-widget.png"),ImageFormat.Png);
+                        capture.Save(Path.Combine(folder,theme.ToString().ToLowerInvariant()+"-widget-desktop.png"),ImageFormat.Png);
+                        int opaque=0;
+                        for(int y=0;y<preview.Height;y++)for(int x=0;x<preview.Width;x++)if(preview.GetPixel(x,y).A==255)opaque++;
+                        if(opaque<100)throw new InvalidOperationException("Widget text and bars must stay opaque");
+                    }
+                }
+            }
+            File.WriteAllText(Path.Combine(folder,"widget-result.txt"),"PASS: real desktop composition at 20%, 50%, 100% opacity in both themes; no window border; opaque content; focus guard");
+        }
+        finally { background.Close();AppRuntime.Current.Settings.Value.WidgetOpacity=originalOpacity; }
+    }
+    private static void AssertBlend(Color actual,Color backdrop,Color tint,int opacity)
+    {
+        int alpha=(int)Math.Round(opacity*2.55);
+        int Blend(int foreground,int behind)=>(foreground*alpha+behind*(255-alpha)+127)/255;
+        if(Math.Abs(actual.R-Blend(tint.R,backdrop.R))>8 || Math.Abs(actual.G-Blend(tint.G,backdrop.G))>8 || Math.Abs(actual.B-Blend(tint.B,backdrop.B))>8)
+            throw new InvalidOperationException($"Actual desktop transparency failed: {actual}; expected tint {tint} at {opacity}% over {backdrop}");
+    }
+    private static Microsoft.UI.Xaml.Media.SolidColorBrush Brush(Color color)=>new(global::Windows.UI.Color.FromArgb(255,color.R,color.G,color.B));
+}

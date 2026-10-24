@@ -1,3 +1,10 @@
+## v0.5.6
+
+- Fix the widget appearing black instead of transparent on the desktop by presenting per-pixel alpha through a dedicated native layered popup.
+- Remove the native window frame and panel outline, including the white border.
+- Keep names, percentages and battery bars opaque; preserve positioning, click-through protection and device colors.
+- Test real desktop composition over a separate two-color window at three opacity levels in both themes, rather than relying only on offscreen rendering.
+
 ## v0.5.5
 
 - Apply widget transparency to the background only; keep names, percentages and battery bars fully opaque.
